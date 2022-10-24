@@ -60,12 +60,15 @@ from SocketClient import SocketClient
 from awgClient import AWGClient
 from measurement_managment import (
     Action,
+    ConcurrentAction,
     Minimize,
     SetVoltage,
     Wait,
     Integrate,
     Scan,
-    StepScan
+    StepScan,
+    GraphUpdate,
+    DependentAction,
 )
 
 
@@ -146,7 +149,7 @@ class CoincidenceExample(QMainWindow):
         self.active_channels = []
         self.last_coincidenceWindow = 0
         self.updateMeasurements()
-        self.divider = 20
+        self.divider = 5
         self.scanRunning = False
         self.multiScan = False
         self.event_loop_action = None
@@ -160,6 +163,8 @@ class CoincidenceExample(QMainWindow):
         self.tagger.setEventDivider(18, self.clock_divider)
 
         self.VSource = teledyneT3PS("10.7.0.147", port=1026)
+        self.VSource.set_max_voltage(5.0)
+        # self.VSource = teledyneT3PS("10.7.0.147", port=1026, max_voltage=2)
         self.VSource.connect()
         V_init = self.VSource.getVoltage(2)
         print("VSource Initialized With Voltage: ", V_init)
@@ -181,7 +186,7 @@ class CoincidenceExample(QMainWindow):
         self.draw()
         self.timer = QTimer()
         self.timer.timeout.connect(self.draw)
-        self.timer.start(200)
+        self.timer.start(10)
         self.tagger.setEventDivider(18, self.clock_divider)
 
     def getCouterNormalizationFactor(self):
@@ -358,7 +363,7 @@ class CoincidenceExample(QMainWindow):
             basis_div = numpy.linspace(pclocks[0], pclocks_div[-1], len(pclocks_div))
 
             self.plt_clock_dirty = self.clockAxis.plot(
-                x_clocks, basis_div - clocks_div, color="k", alpha=0.1
+                x_clocks, basis_div - clocks_div, color="k", alpha=0.2, lw=0.3
             )
             self.plt_clock_clean = self.clockAxis.plot(
                 x_clocks, basis_div - pclocks_div, color="red"
@@ -977,8 +982,7 @@ class CoincidenceExample(QMainWindow):
         # self.data_channel = data_channel_1
         # self.clock_channel = clock_channel
         self.tagger.setEventDivider(self.active_channels[2], 100)
-        # self.tagger.setTriggerLevel(-5, -0.014)
-        # self.tagger.setTriggerLevel(9, 0.05)
+
         # I should be pulling these settings from a local diccionary...
         self.PLL = CustomPLLHistogram(
             self.tagger,
@@ -987,9 +991,9 @@ class CoincidenceExample(QMainWindow):
             clock_channel,
             mult=50000,  # clock multiplier
             phase=0,
-            deriv=300,
+            deriv=800,
             prop=1e-13,
-            n_bins=8000000,
+            n_bins=800000,
         )
 
     def clockRefMode(self):
@@ -1153,8 +1157,30 @@ class CoincidenceExample(QMainWindow):
         # )
         # tracker.add_action(Wait(10))
 
-        tracker.add_action(StepScan(params["int_fast"], self.VSource))
-        
+        # +-Concurrent----------+
+        # | +-Action-+ +------+ |
+        # | |+------+| |      | |
+        # | || Scan || |      | |
+        # | ||      || |      | |
+        # | |+------+| |graph | |
+        # | |+------+| |      | |
+        # | || Mini || |      | |
+        # | ||      || |      | |
+        # | |+------+| |      | |
+        # | +--------+ +------+ |
+        # +---------------------+
+
+        scan_and_minimize = DependentAction()
+        scan_and_minimize.add_action(Scan(params["int_fast"], self.VSource))
+        scan_and_minimize.add_action(Minimize(0.005, self.VSource, 2.57))
+
+        # how do you tell Minimize where to find the curve with the max and the min values? It doesn't exist yet...
+        # if these are not finihed, I want the result to bubble up the the graph object.
+        # if they are finished, I want them to export data to either the next object or the graph object.
+
+        tracker.add_action(
+            ConcurrentAction(scan_and_minimize, GraphUpdate(self.clockAxis))
+        )
         tracker.enable_save(save_name=params["save_name"])
 
     def initVisibility(self):

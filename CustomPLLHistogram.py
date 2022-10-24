@@ -122,7 +122,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
     # I should support the measurment of the unfiltered clock with respect to the phase locked clock.
 
     @staticmethod
-    @numba.jit(nopython=True, nogil=True)
+    @numba.jit(nopython=True, nogil=False)
     def fast_process(
         tags,
         clock_data,
@@ -157,13 +157,16 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                        this method can run in parallel with other python code
         """
         error = 0
-
+        test = 0
         siv_start = 80
         siv_end = 160
         buffer_tag_raw = 0
         buffer_tag_hist = 0
         freq = 1 / period
+        zero_cycles = 0
         if init:
+            print("type: ", tags.dtype)
+            # print("extra info: ", tags[0].shape)
             clock_idx = 0
             clock_portion = np.zeros(1000, dtype=np.uint64)
 
@@ -183,28 +186,67 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             hist_1_idx = 0
             hist_2_idx = 0
             coinc_idx = 0
+            arg1 = 0
 
         for i, tag in enumerate(tags):
             q = q + 1
-
             if tag["channel"] == clock_channel:
                 current_clock = tag["time"]
                 clock_data[clock_idx] = current_clock
                 if clock0 == -1:
                     clock0 = current_clock - period
-                arg = ((current_clock - (clock0 + period)) / period) * 2 * math.pi
-                phi0 = math.sin(arg)
+                pi_val = math.pi
+                arg1 = ((current_clock - (clock0 + period))* 2 * pi_val)
+                arg2 = arg1 / period
+                phi0 = math.sin(arg2)
                 filterr = phi0 + (phi0 - phi_old) * deriv
                 freq = freq - filterr * prop
 
                 # this will handle missed clocks
                 cycles = round((current_clock - clock0) / period)
-
-                clock0 = clock0 + cycles * (1 / freq)  # add one (or more) periods
-                lclock_data[clock_idx] = clock0
                 period = 1 / freq
+                # if i == 32:
+                #     print(phi_old)
+
+                if i == 56:
+                    print("###################")
+                    print("RANDOM")
+                    print("current and previous: ", current_clock - (clock0 + period))
+
+
+                if abs(phi0) <= 1e-9:
+                    zero_cycles += 1
+                    print("###################")
+                    print("phi0: ", phi0)
+                    print("phi_old: ", phi_old)
+                    print("arg1: ", arg1)
+                    print("arg2: ", arg2)
+                    print("current clock: ", current_clock)
+                    print("clock0: ", clock0)
+                    print("period: ", period)
+                    print("pi val: ", pi_val)
+                    print("current and previous: ", current_clock - (clock0 + period))
+                    print("period: ", period)
+                    # print("filterr: ", filterr)
+                    # print("cycles: ", cycles)
+                #     # print("period times frequency: ", period * freq)
+                #     # print("#### phi0: ", phi0)
+                #     # print("######## deriv: ", deriv)
+                #     # print("######## prop: ", prop)
+                #     # print("hist tags 1 data: ", hist_1_tags_data[0])
+                #     # print("clock0: ", clock0)
+                #     # print("q: ", q)
+                # print(test)
+                # if phi_old == 0.0:
+                #     test = test + 1
+                if cycles != 1:
+                    test = test + 1
+                # if i == 32:
+                #     print(test)
+                clock0 = clock0 + cycles * period  # add one (or more) periods
+                lclock_data[clock_idx] = clock0
                 phi_old = phi0
-                clock_idx += 1
+                clock_idx = clock_idx + 1
 
             if (tag["channel"] == data_channel_1) or (tag["channel"] == data_channel_2):
                 if clock0 != -1:
@@ -255,12 +297,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 else:
                     continue
 
-            # if q % 100000 == 0:
-            #     print("deriv: ", deriv)
-            #     print("prop: ", prop)
-            #     print("period: ", period)
-            #     print("arg: ", arg)
-            #     print("freq: ", freq)
+        print("zero cycles: ", zero_cycles)
         return (
             clock0,
             period,

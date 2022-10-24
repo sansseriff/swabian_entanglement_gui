@@ -34,21 +34,24 @@ class Action:
         if (
             response["state"] == "finished"
         ):  # might want to change these to response.get()
+            response.pop("state", None)
             self.results.append(response)
             self.event_list.pop(0)
-            # start the next event if the previous one finishes?
-            # recursive call
             if len(self.event_list) == 0:
-                print("finished event list")
+                print("finished event action: ", self.__class__.__name__)
                 self.pass_state = True  # deactivates this function in this object
-                self.final_state = {"state": "finished", "results": self.results}
+                self.final_state = {
+                    "state": "finished",
+                    "name": self.__class__.__name__,
+                    "results": self.results,
+                }
                 if self.save:
                     self.do_save()
                 return self.final_state
             # only if the previous is finished do you recursively call evaluate
             self.evaluate(current_time, counts)
 
-        return {"state": "waiting"}
+        return {"state": "waiting", "results": response}
 
         # how do I bubble up the results from the scan? In each evaluate?
 
@@ -73,8 +76,12 @@ class SetVoltage(Action):
 
     def evaluate(self, current_time, counts, **kwargs):
         self.vsource.setVoltage(self.channel, round(self.voltage, 3))
-        print("####### setting voltage to", self.voltage)
-        self.final_state = {"state": "finished"}
+        print("####### setting voltage to", round(self.voltage, 3))
+        self.final_state = {
+            "state": "finished",
+            "name": self.__class__.__name__,
+            "voltage": self.voltage,
+        }
         return self.final_state
 
     def __str__(self):
@@ -90,7 +97,12 @@ class GetVoltageCurrent(Action):
     def evaluate(self, current_time, counts, **kwargs):
         current = self.vsource.getCurrent(self.channel)
         voltage = self.vsource.getVoltage(self.channel)
-        self.final_state = {"state": "finished", "current": current, "voltage": voltage}
+        self.final_state = {
+            "state": "finished",
+            "name": self.__class__.__name__,
+            "current": current,
+            "voltage": voltage,
+        }
         return self.final_state
 
     def __str__(self):
@@ -105,11 +117,12 @@ class Wait(Action):
     def evaluate(self, current_time, counts, **kwargs):
         if self.init_time == -1:
             self.init_time = time.time()
-            print("####### starting wait")
+            # print("####### starting wait")
         if (current_time - self.init_time) > self.wait_time:
-            print("####### finished wait")
+            # print("####### finished wait")
             self.final_state = {
                 "state": "finished",
+                "name": self.__class__.__name__,
                 "time_waited": current_time - self.init_time,
             }
             return self.final_state
@@ -130,16 +143,17 @@ class Integrate(Action):
         if self.init_time == -1:
             self.init_time = time.time()
             # started
-            print("####### starting integrate")
+            # print("####### starting integrate")
 
         self.counts = self.counts + counts  # add counts
 
         if (current_time - self.init_time) > self.int_time:
             # finish up
-            print("####### ending integrate")
+            # print("####### ending integrate")
             self.delta_time = current_time - self.init_time
             self.final_state = {
                 "state": "finished",
+                "name": self.__class__.__name__,
                 "counts": self.counts,
                 "delta_time": self.delta_time,
             }
@@ -147,7 +161,8 @@ class Integrate(Action):
         return {"state": "integrating"}
 
     def reset(self):
-        self.init_time == -1
+        self.init_time = -1
+        self.counts = 0
 
     def __str__(self):
         return "Integrate Object"
@@ -173,6 +188,7 @@ class ValueIntegrate(Action):
             self.delta_time = current_time - self.init_time
             self.final_state = {
                 "state": "finished",
+                "name": self.__class__.__name__,
                 "counts": self.counts,
                 "delta_time": self.delta_time,
             }
@@ -181,6 +197,64 @@ class ValueIntegrate(Action):
 
     def __str__(self):
         return "ValueIntegrate Action Object"
+
+
+class VoltageAndIntegrate(Action):
+    def __init__(
+        self, voltage, vsource, voltage_channel, inter_wait_time, time_per_point
+    ):
+        super().__init__()
+        self.vsource = vsource
+        self.voltage_channel = voltage_channel
+        self.inter_wait_time = inter_wait_time
+        self.time_per_point = time_per_point
+
+        self.add_action(SetVoltage(voltage, self.vsource, self.voltage_channel))
+        self.add_action(Wait(self.inter_wait_time))
+        self.add_action(GetVoltageCurrent(self.vsource, self.voltage_channel))
+        self.add_action(Integrate(self.time_per_point))
+
+    def evaluate(self, current_time, counts, **kwargs):
+        return super().evaluate(current_time, counts, **kwargs)
+
+
+# class ScanAndMinimize(Action):
+#     def __init__(self, scan_params, vsource, change_rate, init_voltage):
+#         super().__init__()
+#         self.add_action(Scan(scan_params, vsource))
+#         self.add_action(Minimize(change_rate, vsource, init_voltage))
+class DependentAction(Action):
+    def __init__(self):
+        super().__init__()
+
+    def evaluate(self, current_time, counts, **kwargs):
+        if self.pass_state:
+            return {"state": "passed"}
+            """remember how I decided an object should be allowed 
+            to deactivate itself, but it should not delete itself"""
+        response = self.event_list[0].evaluate(current_time, counts)
+        if (
+            response["state"] == "finished"
+        ):  # might want to change these to response.get()
+            response.pop("state", None)
+            self.results.append(response)
+            self.event_list.pop(0)
+            if len(self.event_list) == 0:
+                print("finished event action: ", self.__class__.__name__)
+                self.pass_state = True  # deactivates this function in this object
+                self.final_state = {
+                    "state": "finished",
+                    "name": self.__class__.__name__,
+                    "results": self.results,
+                }
+                if self.save:
+                    self.do_save()
+                return self.final_state
+            # take the data and put give it to the next object
+            self.evaluate(current_time, counts, prev_data=response)
+
+        # this intermediate return can be passed to a graph by ConcurrentAction
+        return {"state": "waiting", "results": response}
 
 
 class Scan(Action):
@@ -195,19 +269,33 @@ class Scan(Action):
         )
         for voltage in self.voltage_array:
             self.add_action(
-                SetVoltage(voltage, self.vsource, self.scan_params["voltage_channel"])
+                VoltageAndIntegrate(
+                    voltage,
+                    self.vsource,
+                    self.scan_params["voltage_channel"],
+                    self.scan_params["inter_wait_time"],
+                    self.scan_params["time_per_point"],
+                )
             )
-            self.add_action(Wait(self.scan_params["inter_wait_time"]))
-            self.add_action(
-                GetVoltageCurrent(self.vsource, self.scan_params["voltage_channel"])
-            )
-            self.add_action(Integrate(self.scan_params["time_per_point"]))
+
+    # def flatten_evaluate(self, scan_params, vsource):
+    #     result = self.evaluate(scan_params, vsource)
+    #     if result.get("state") == "finished":
+    #         for item in result:
+    #             if
 
     def __str__(self):
         return "Scan Action Object"
 
+    def print(self):
+        print(self.__class__)
+
 
 class StepScan(Action):
+    """
+    Partial scan in two locations. This is biolerplate-y
+    """
+
     def __init__(self, scan_params, vsource):
         super().__init__()
         self.vsource = vsource
@@ -237,25 +325,30 @@ class Minimize(Action):
     def __init__(self, change_rate, vsource, init_voltage):
         super().__init__()
         self.change_rate = change_rate
-        self.add_action(Integrate(2))  # 2 seconds
+        self.add_action(Integrate(40))  # 2 seconds
         self.vsource = vsource
         self.init_voltage = init_voltage
         self.direction = Direction()
         self.voltage = init_voltage
         self.channel = 2
         self.prev_coinc_rate = -1
+        self.init = False
 
     def evaluate(self, current_time, counts, **kwargs):
-        response = self.event_list[0].evaluate(current_time, counts)
-        # print("response: ", response)
-        # print("length of even list: ", len(self.event_list))
-        # # if response["state"] == "finished":
-        # #     print(response)
-        # return {"state": "minimizing"}
+        if self.init is False:
+            if kwargs.get("prev_data") is not None:
+                print("previous data dump: ")
+                print(kwargs["prev_data"])
+            print("########################### VOLTAGE: ", round(self.voltage, 3))
+            self.vsource.setVoltage(self.channel, round(self.voltage, 3))
+            self.init = True
 
+        response = self.event_list[0].evaluate(current_time, counts)
+        # print("response: ", response["state"])
         if response["state"] == "finished":
             self.event_list[0].reset()
             coinc_rate = response["counts"] / response["delta_time"]
+            print("########################### coinc rate: ", coinc_rate)
 
             if (coinc_rate == self.prev_coinc_rate) or (self.prev_coinc_rate == -1):
                 self.direction.random()
@@ -267,12 +360,17 @@ class Minimize(Action):
                 # to do. Keep going in that direction.
                 if coinc_rate > self.prev_coinc_rate:
                     self.direction.reverse()
+                else:
+                    print("no direction change")
 
             delta = self.change_rate * self.direction()
             self.voltage = self.voltage + delta
+            print("########################### VOLTAGE: ", round(self.voltage, 3))
             self.vsource.setVoltage(self.channel, round(self.voltage, 3))
 
             self.prev_coinc_rate = coinc_rate
+
+        return {"state": "working", "name": self.__class__.__name__}
 
     def __str__(self):
         return "Minimize Action Object"
@@ -288,7 +386,7 @@ class ConcurrentAction(Action):
         self.objects = objects  # this is a tuple of objects
 
         self.intermediate_result = None  # this gets overwritten with each evaluate
-        self.action_information = {"action": "concurrent_action", "state": "working"}
+        # self.action_information = {"action": "concurrent_action", "state": "working"}
         self.pass_state = False
 
     def evaluate(self, current_time, counts, **kwargs):
@@ -300,11 +398,21 @@ class ConcurrentAction(Action):
                 current_time, counts, intermediate=self.intermediate_result
             )
 
-            if self.intermediate_result["state"] == "finished":
-                self.action_information["internal"] = self.intermediate_result
-                self.action_information["state"] = "finished"
+            if self.intermediate_result.get("state") == "finished":
                 self.pass_state = True
-                return self.action_information
+                self.final_state = {
+                    "state": "finished",
+                    "name": self.__class__.__name__,
+                    "results": self.intermediate_result,
+                }
+                return self.final_state
+        return {"state": "working", "name": self.__class__.__name__}
+
+
+# class PlottableObject():
+#     def __init__():
+
+# every time we get enough information for a new datapoint... Is every time we finihes one iteration of... the scan object.
 
 
 class GraphUpdate(Action):
@@ -312,12 +420,22 @@ class GraphUpdate(Action):
         self.axis = axis
         self.data = None
         self.pass_state = False
+        self.x_data = []
+        self.y_data = []
 
     def evaluate(self, current_time, counts, **kwargs):
         self.data = kwargs
-        if self.data.get("graph_data") is not None:
-            self.axis[0].set_xdata(self.data["graph_data"]["x_data"])
-            self.axis[0].set_ydata(self.data["graph_data"]["y_data"])
+
+        # if len(self.data) > 0:
+        #     print("##### Sarting: from graph #####")
+        #     print(self.data)
+        #     print("##### Ending: from graph #####")
+
+        return {"state": "graphing", "name": self.__class__.__name__}
+
+        # if self.data.get("graph_data") is not None:
+        #     self.axis[0].set_xdata(self.data["graph_data"]["x_data"])
+        #     self.axis[0].set_ydata(self.data["graph_data"]["y_data"])
 
 
 class Direction:
@@ -327,12 +445,15 @@ class Direction:
     def reverse(self):
         if self.direction == 1:
             self.direction = -1
-        if self.direction == -1:
+            print("from 1 to -1")
+        else:
             self.direction = 1
+            print("from -1 to 1")
         return self.direction
 
     def random(self):
         self.direction = random.choice([1, -1])
+        print("random: ", self.direction)
         return self.direction
 
     def __call__(self):
@@ -341,7 +462,7 @@ class Direction:
 
 if __name__ == "__main__":
     # concurrent = ConcurrentAction(Direction(), ValueIntegrate(30))
-
+    # concurrent.whee()
     def myfunction(option_1, option_2, **kwargs):
         print("option_1: ", option_1)
         print("option_2: ", option_2)
@@ -349,7 +470,10 @@ if __name__ == "__main__":
         print(len(kwargs))
         # for thing in kwargs:
         #     print("   thing: ", thing)
-        for item in kwargs.keys():
-            print("key: ", item, "thing: ", kwargs[item])
+        # for item in kwargs.keys():
+        #     print("key: ", item, "thing: ", kwargs[item])
 
-    myfunction(3, 56, this="thingy", why="patthern")
+    # print(concurrent)
+    # print(concurrent.__class__())
+
+    myfunction(3, 56)
