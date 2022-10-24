@@ -122,7 +122,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
     # I should support the measurment of the unfiltered clock with respect to the phase locked clock.
 
     @staticmethod
-    @numba.jit(nopython=True, nogil=False)
+    @numba.jit(nopython=True, nogil=True)
     def fast_process(
         tags,
         clock_data,
@@ -195,8 +195,18 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 clock_data[clock_idx] = current_clock
                 if clock0 == -1:
                     clock0 = current_clock - period
-                pi_val = math.pi
-                arg1 = ((current_clock - (clock0 + period))* 2 * pi_val)
+                arg1 = ((current_clock - (clock0 + period))* 2 * math.pi)
+                clock0_int = math.floor(clock0)
+                clock0_dec = clock0 - clock0_int
+
+                period_int = math.floor(period)
+                period_dec = period - period_int
+
+
+                new_c_dec = clock0_dec + period_dec
+                new_c_int = clock0_int + period_int
+                arg1 = current_clock - new_c_int
+                arg1 = (arg1 - new_c_dec) * 2 * math.pi
                 arg2 = arg1 / period
                 phi0 = math.sin(arg2)
                 filterr = phi0 + (phi0 - phi_old) * deriv
@@ -208,25 +218,26 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 # if i == 32:
                 #     print(phi_old)
 
-                if i == 56:
-                    print("###################")
-                    print("RANDOM")
-                    print("current and previous: ", current_clock - (clock0 + period))
+                # if i == 56:
+                #     print("###################")
+                #     print("RANDOM")
+                #     print("current and previous: ", current_clock - (clock0 + period))
 
 
-                if abs(phi0) <= 1e-9:
-                    zero_cycles += 1
-                    print("###################")
-                    print("phi0: ", phi0)
-                    print("phi_old: ", phi_old)
-                    print("arg1: ", arg1)
-                    print("arg2: ", arg2)
-                    print("current clock: ", current_clock)
-                    print("clock0: ", clock0)
-                    print("period: ", period)
-                    print("pi val: ", pi_val)
-                    print("current and previous: ", current_clock - (clock0 + period))
-                    print("period: ", period)
+                # if abs(phi0) <= 1e-9:
+                #     zero_cycles += 1
+                #     print("###################")
+                #     print("phi0: ", phi0)
+                #     print("phi_old: ", phi_old)
+                #     print("arg1: ", arg1)
+                #     print("arg2: ", arg2)
+                #     print("current clock: ", current_clock)
+                #     print("clock0: ", clock0)
+                #     print("period: ", period)
+                #     print("current and previous: ", current_clock - (clock0 + period))
+                #     print("period: ", period)
+
+
                     # print("filterr: ", filterr)
                     # print("cycles: ", cycles)
                 #     # print("period times frequency: ", period * freq)
@@ -297,7 +308,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 else:
                     continue
 
-        print("zero cycles: ", zero_cycles)
+        # print("zero cycles: ", zero_cycles)
         return (
             clock0,
             period,

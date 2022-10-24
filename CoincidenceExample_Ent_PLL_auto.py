@@ -991,14 +991,13 @@ class CoincidenceExample(QMainWindow):
             clock_channel,
             mult=50000,  # clock multiplier
             phase=0,
-            deriv=800,
+            deriv=400,
             prop=1e-13,
             n_bins=800000,
         )
 
     def clockRefMode(self):
         self.load_file_params()
-        # self.zoomInOnPeak()
 
         self.startPLL(
             self.active_channels[0], self.active_channels[1], self.active_channels[2]
