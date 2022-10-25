@@ -105,8 +105,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
     def clear_impl(self):
         # The lock is already acquired within the backend.
         self.last_start_timestamp = 0
-        self.clock_data = np.zeros((self.max_bins,), dtype=np.float64)
-        self.lclock_data = np.zeros((self.max_bins,), dtype=np.float64)
+        self.clock_data = np.zeros((self.max_bins,), dtype=np.int64)
+        self.lclock_data = np.zeros((self.max_bins,), dtype=np.int64)
         self.hist_1_tags_data = np.zeros((self.max_bins,), dtype=np.float64)
         self.coinc = np.zeros((self.max_bins,), dtype=np.float64)
         self.hist_2_tags_data = np.zeros((self.max_bins,), dtype=np.float64)
@@ -156,14 +156,18 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         nogil=True:    This method will release the global interpreter lock. So
                        this method can run in parallel with other python code
         """
+
         error = 0
-        test = 0
+        # test = 0
         siv_start = 80
         siv_end = 160
         buffer_tag_raw = 0
         buffer_tag_hist = 0
         freq = 1 / period
         zero_cycles = 0
+        test_factor = 100000000000000000
+
+        this = np.ones(5)*4.9345
         if init:
             print("type: ", tags.dtype)
             # print("extra info: ", tags[0].shape)
@@ -172,7 +176,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
 
             for clock_idx, tag in enumerate(tags[:1000]):
                 if tag["channel"] == clock_channel:
-                    clock_portion[clock_idx] = tag["time"]
+                    clock_portion[clock_idx] = tag["time"]+test_factor
                     clock_idx += 1
 
             # Initial Estimates
@@ -186,28 +190,39 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             hist_1_idx = 0
             hist_2_idx = 0
             coinc_idx = 0
-            arg1 = 0
+            
+
+        
 
         for i, tag in enumerate(tags):
             q = q + 1
             if tag["channel"] == clock_channel:
-                current_clock = tag["time"]
+                current_clock = tag["time"]+test_factor
                 clock_data[clock_idx] = current_clock
                 if clock0 == -1:
-                    clock0 = current_clock - period
-                arg1 = ((current_clock - (clock0 + period))* 2 * math.pi)
-                clock0_int = math.floor(clock0)
-                clock0_dec = clock0 - clock0_int
+                    # clock0 = current_clock - period
+                    clock0 = int(current_clock - period)
+                # arg = ((current_clock - (clock0 + period))* 2 * math.pi)
+                #####
+                if i == 32:
+                    print("this: ", this.astype(np.int64))
+                ####
+                # clock0_int = clock0.astype(np.int64)
+                # clock0_dec = clock0 - clock0_int
 
-                period_int = math.floor(period)
-                period_dec = period - period_int
+                # period_int = period.astype(np.int64)
+                # period_dec = period - period_int
 
 
-                new_c_dec = clock0_dec + period_dec
-                new_c_int = clock0_int + period_int
-                arg1 = current_clock - new_c_int
-                arg1 = (arg1 - new_c_dec) * 2 * math.pi
-                arg2 = arg1 / period
+                # new_c_dec = clock0_dec + period_dec
+                # new_c_int = clock0_int + period_int
+                # arg1 = current_clock - new_c_int
+                # arg1 = (arg1 - new_c_dec) * 2 * math.pi
+                #####
+
+                arg_int = current_clock - clock0 #should both be int64s
+                arg = (arg_int - period) * 2 * math.pi # now its a float
+                arg2 = arg / period
                 phi0 = math.sin(arg2)
                 filterr = phi0 + (phi0 - phi_old) * deriv
                 freq = freq - filterr * prop
@@ -224,7 +239,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 #     print("current and previous: ", current_clock - (clock0 + period))
 
 
-                # if abs(phi0) <= 1e-9:
+                # if abs(phi0) <= 1e-10:
                 #     zero_cycles += 1
                 #     print("###################")
                 #     print("phi0: ", phi0)
@@ -250,18 +265,20 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 # print(test)
                 # if phi_old == 0.0:
                 #     test = test + 1
-                if cycles != 1:
-                    test = test + 1
+                # if cycles != 1:
+                #     test = test + 1
                 # if i == 32:
                 #     print(test)
-                clock0 = clock0 + cycles * period  # add one (or more) periods
+                adj = cycles * period
+                clock0 = clock0 + int(adj)
+
                 lclock_data[clock_idx] = clock0
                 phi_old = phi0
                 clock_idx = clock_idx + 1
 
             if (tag["channel"] == data_channel_1) or (tag["channel"] == data_channel_2):
                 if clock0 != -1:
-                    hist_tag = tag["time"] - clock0
+                    hist_tag = (tag["time"]+test_factor) - clock0
                     sub_period = period / mult
                     minor_cycles = (hist_tag + phase) // sub_period
                     hist_tag = hist_tag - (sub_period * minor_cycles)
@@ -272,7 +289,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
 
                         if (hist_tag > siv_start) and (hist_tag < siv_end):
                             # clock valid. Check the buffer
-                            if abs(tag["time"] - buffer_tag_raw) <= 80:
+                            if abs((tag["time"]+test_factor) - buffer_tag_raw) <= 80:
                                 # valid coincidence. add to coinc array
                                 coinc[coinc_idx] = (buffer_tag_hist + hist_tag) / 2
                                 buffer_tag_hist = -200
@@ -281,7 +298,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                             else:
                                 # no match, overwrite buffer with current tag
                                 buffer_tag_hist = hist_tag
-                                buffer_tag_raw = tag["time"]
+                                buffer_tag_raw = tag["time"]+test_factor
 
                     if tag["channel"] == data_channel_2:
                         hist_2_tags_data[hist_2_idx] = hist_tag
@@ -289,7 +306,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
 
                         if (hist_tag > siv_start) and (hist_tag < siv_end):
                             # clock valid. Check the buffer
-                            if abs(tag["time"] - buffer_tag_raw) <= 80:
+                            if abs(tag["time"]+test_factor - buffer_tag_raw) <= 80:
                                 # valid coincidence. add to coinc array
                                 coinc[coinc_idx] = (buffer_tag_hist + hist_tag) / 2
                                 buffer_tag_hist = -200
@@ -298,7 +315,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                             else:
                                 # no match, overwrite buffer with current tag
                                 buffer_tag_hist = hist_tag
-                                buffer_tag_raw = tag["time"]
+                                buffer_tag_raw = tag["time"]+test_factor
 
                     # if its in the correct time window, save it in buffer.
                     # every time something gets added to the buffer you either
