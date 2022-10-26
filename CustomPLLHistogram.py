@@ -107,6 +107,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         self.last_start_timestamp = 0
         self.clock_data = np.zeros((self.max_bins,), dtype=np.int64)
         self.lclock_data = np.zeros((self.max_bins,), dtype=np.int64)
+        self.lclock_data_dec = np.zeros((self.max_bins,), dtype=np.float64) # decimal component of clock0
         self.hist_1_tags_data = np.zeros((self.max_bins,), dtype=np.float64)
         self.coinc = np.zeros((self.max_bins,), dtype=np.float64)
         self.hist_2_tags_data = np.zeros((self.max_bins,), dtype=np.float64)
@@ -127,6 +128,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         tags,
         clock_data,
         lclock_data,
+        lclock_data_dec,
         hist_1_tags_data,
         hist_2_tags_data,
         coinc,
@@ -165,7 +167,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         buffer_tag_hist = 0
         freq = 1 / period
         zero_cycles = 0
-        test_factor = 0 #1000000000 # 000000000
+        # test_factor = 1000000000000000000
+        test_factor = 0
 
         this = np.ones(5)*4.9345
         if init:
@@ -185,18 +188,12 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             freq = 1 / period
             init = 0
             clock0 = -1
+            clock0_dec = -.1
             print("[READY] Finished FastProcess Initialization")
             clock_idx = 0
             hist_1_idx = 0
             hist_2_idx = 0
             coinc_idx = 0
-            
-        # ToDo
-        # Make integer and float parts of clock0
-        # I'ts possible I'm having trouble making clock0 an int because it WANTS to be a float...
-        # Make sure they are used correctly in the rest of the visualization code. 
-        # Or make those tracking histograms here, in numba. 
-        
 
         for i, tag in enumerate(tags):
             q = q + 1
@@ -206,86 +203,42 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 if clock0 == -1:
                     # clock0 = current_clock - period
                     clock0 = np.int64(current_clock - period)
-                # arg = ((current_clock - (clock0 + period))* 2 * math.pi)
-                #####
-                # if i == 32:
-                #     print("this: ", this.astype(np.int64))
-                ####
-                # clock0_int = clock0.astype(np.int64)
-                # clock0_dec = clock0 - clock0_int
+                    clock0_dec = 0.0
 
-                # period_int = period.astype(np.int64)
-                # period_dec = period - period_int
-
-
-                # new_c_dec = clock0_dec + period_dec
-                # new_c_int = clock0_int + period_int
-                # arg1 = current_clock - new_c_int
-                # arg1 = (arg1 - new_c_dec) * 2 * math.pi
-                #####
-
-
-                arg_int = np.int64(current_clock - clock0) #should both be int64s
-                arg = (arg_int - period) * 2 * math.pi # now its a float
-
-                arg2 = arg / period
-                phi0 = math.sin(arg2)
+                # arg_int = np.int64(current_clock - clock0) #should both be int64s
+                arg_int = current_clock - clock0 #both int64
+                arg = arg_int - clock0_dec
+                arg = (arg - period) * 2 * math.pi # now its a float
+                arg = arg / period
+                phi0 = math.sin(arg)
                 filterr = phi0 + (phi0 - phi_old) * deriv
                 freq = freq - filterr * prop
 
                 # this will handle missed clocks
                 cycles = round((current_clock - clock0) / period)
                 period = 1 / freq
-                # if i == 32:
-                #     print(phi_old)
-
-                # if i == 56:
-                #     print("###################")
-                #     print("RANDOM")
-                #     print("current and previous: ", current_clock - (clock0 + period))
-
-
-                # if abs(phi0) <= 1e-10:
-                #     zero_cycles += 1
-                #     print("###################")
-                #     print("phi0: ", phi0)
-                #     print("phi_old: ", phi_old)
-                #     print("arg1: ", arg1)
-                #     print("arg2: ", arg2)
-                #     print("current clock: ", current_clock)
-                #     print("clock0: ", clock0)
-                #     print("period: ", period)
-                #     print("current and previous: ", current_clock - (clock0 + period))
-                #     print("period: ", period)
-
-
-                    # print("filterr: ", filterr)
-                    # print("cycles: ", cycles)
-                #     # print("period times frequency: ", period * freq)
-                #     # print("#### phi0: ", phi0)
-                #     # print("######## deriv: ", deriv)
-                #     # print("######## prop: ", prop)
-                #     # print("hist tags 1 data: ", hist_1_tags_data[0])
-                #     # print("clock0: ", clock0)
-                #     # print("q: ", q)
-                # print(test)
-                # if phi_old == 0.0:
-                #     test = test + 1
-                # if cycles != 1:
-                #     test = test + 1
-                # if i == 32:
-                #     print(test)
                 adj = cycles * period
-                clock0 = clock0 + np.int64(adj)
+                adj_int = np.int64(adj)
+                adj_dec = adj - adj_int
+
+                clock0 = clock0 + adj_int
+                clock0_dec = clock0_dec + adj_dec
+                if clock0_dec >= 1:
+                    int_add = np.int64(clock0_dec)
+                    clock0 = clock0 + int_add
+                    clock0_dec = clock0_dec - int_add
+
                 # clock0 = clock0 + adj
 
                 lclock_data[clock_idx] = clock0
+                lclock_data_dec[clock_idx] = clock0_dec
                 phi_old = phi0
                 clock_idx = clock_idx + 1
 
             if (tag["channel"] == data_channel_1) or (tag["channel"] == data_channel_2):
                 if clock0 != -1:
-                    hist_tag = (tag["time"]+test_factor) - clock0
+                    hist_tag = ((tag["time"]+test_factor) - clock0) - clock0_dec
+                    # hist_tag = (tag["time"]+test_factor) - current_clock # no PLL
                     sub_period = period / mult
                     minor_cycles = (hist_tag + phase) // sub_period
                     hist_tag = hist_tag - (sub_period * minor_cycles)
@@ -384,6 +337,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             incoming_tags,
             self.clock_data,
             self.lclock_data,
+            self.lclock_data_dec,
             self.hist_1_tags_data,
             self.hist_2_tags_data,
             self.coinc,

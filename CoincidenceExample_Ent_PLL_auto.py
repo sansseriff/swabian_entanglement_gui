@@ -149,7 +149,7 @@ class CoincidenceExample(QMainWindow):
         self.active_channels = []
         self.last_coincidenceWindow = 0
         self.updateMeasurements()
-        self.divider = 5
+        self.divider = 2
         self.scanRunning = False
         self.multiScan = False
         self.event_loop_action = None
@@ -251,6 +251,7 @@ class CoincidenceExample(QMainWindow):
 
         if self.ui.LogScaleCheck.isChecked():
             self.correlationAxis.set_yscale("log")
+            self.correlationAxis.set_ylim(.005,.04)
         else:
             self.correlationAxis.set_yscale("linear")
 
@@ -343,9 +344,9 @@ class CoincidenceExample(QMainWindow):
             max = numpy.max(hist1)
             print("max is: ", max)
             self.bins = numpy.arange(1, max)
-            histogram1, bins = numpy.histogram(hist1, bins=self.bins)
-            histogram2, bins = numpy.histogram(hist2, bins=self.bins)
-            histogram_coinc, bins = numpy.histogram(coinc, bins=self.bins)
+            histogram1, bins = numpy.histogram(hist1, bins=self.bins, density=True)
+            histogram2, bins = numpy.histogram(hist2, bins=self.bins, density=True)
+            histogram_coinc, bins = numpy.histogram(coinc, bins=self.bins, density=True)
 
             self.histBlock_ent1 = numpy.zeros(
                 (int(self.ui.IntTime.value() * 10), len(histogram1))
@@ -366,7 +367,7 @@ class CoincidenceExample(QMainWindow):
                 x_clocks, basis_div - clocks_div, color="k", alpha=0.2, lw=0.3
             )
             self.plt_clock_clean = self.clockAxis.plot(
-                x_clocks, basis_div - pclocks_div, color="red"
+                x_clocks, basis_div - pclocks_div, color="red", lw=0.3
             )
 
             self.plt_clock_corr_1 = self.correlationAxis.plot(
@@ -388,6 +389,7 @@ class CoincidenceExample(QMainWindow):
             self.coinc_line = self.coincAxis.plot(self.coinc_x, self.coinc_y, color="k")
             if self.ui.LogScaleCheck.isChecked():
                 self.correlationAxis.set_yscale("log")
+                self.correlationAxis.set_ylim(.005,.04)
             else:
                 self.correlationAxis.set_yscale("linear")
 
@@ -399,7 +401,7 @@ class CoincidenceExample(QMainWindow):
         self.correlationAxis.set_xlabel("time (ns)")
         self.correlationAxis.set_ylabel("Counts")
         self.correlationAxis.set_title("Clock Referenced Histograms")
-        self.correlationAxis.grid(True)
+        self.correlationAxis.grid(True, which='both')
 
         self.clockAxis.set_ylim(-100, 100)
         self.clockAxis.grid()
@@ -979,8 +981,6 @@ class CoincidenceExample(QMainWindow):
         self.updateMeasurements()
 
     def startPLL(self, data_channel_1, data_channel_2, clock_channel):
-        # self.data_channel = data_channel_1
-        # self.clock_channel = clock_channel
         self.tagger.setEventDivider(self.active_channels[2], 100)
 
         # I should be pulling these settings from a local diccionary...
@@ -991,8 +991,8 @@ class CoincidenceExample(QMainWindow):
             clock_channel,
             mult=50000,  # clock multiplier
             phase=0,
-            deriv=600,
-            prop=2e-13,
+            deriv=400,
+            prop=3e-13,
             n_bins=800000,
         )
 
@@ -1015,7 +1015,6 @@ class CoincidenceExample(QMainWindow):
             except yaml.YAMLError as exc:
                 print(exc)
 
-        # print(params["GetVisibility"]["clock_offset"])
 
         """
         GetVisibility:
@@ -1318,6 +1317,7 @@ class CoincidenceExample(QMainWindow):
             if self.ent:
                 if self.ui.LogScaleCheck.isChecked():
                     self.correlationAxis.set_yscale("log")
+                    self.correlationAxis.set_ylim(.005,.04)
                 else:
                     self.correlationAxis.set_yscale("linear")
                 ##############
@@ -1325,22 +1325,28 @@ class CoincidenceExample(QMainWindow):
                 clocks_div = clocks[:: self.divider]
                 pclocks_div = pclocks[:: self.divider]
                 x_clocks = numpy.linspace(0, 1, len(clocks_div))
-                basis_div = numpy.linspace(
-                    pclocks_div[0], pclocks_div[-1], len(pclocks_div)
-                )
-                # print("Shape of coinc: ", numpy.shape(coinc))
+                step = int((pclocks_div[-1] - pclocks_div[0])/(len(pclocks_div)-1))
+                basis_div = numpy.arange(pclocks_div[0], pclocks_div[-1], step, dtype=numpy.int64)
 
-                # self.plt_clock_dirty[0].set_xdata(x_clocks)
-                self.plt_clock_dirty[0].set_data(x_clocks, basis_div - clocks_div)
+                # do the big subtraction with int64s:
+                clock_dirty = basis_div - clocks_div
+                clock_clean = basis_div - pclocks_div
 
+                # make a array to remove that last bit of offset:
+                final_offset = numpy.linspace(clock_clean[0], clock_clean[-1], len(clock_clean))
+
+                # then another subtraction
+                clock_dirty = clock_dirty - final_offset # typecast to float
+                clock_clean = clock_clean - final_offset # typecast to float
+                self.plt_clock_dirty[0].set_data(x_clocks, clock_dirty)
                 # self.plt_clock_clean[0].set_xdata(x_clocks)
-                self.plt_clock_clean[0].set_data(x_clocks, basis_div - pclocks_div)
+                self.plt_clock_clean[0].set_data(x_clocks, clock_clean)
                 self.clockAxis.relim()
                 ##############
 
-                histogram1, bins = numpy.histogram(hist1, bins=self.bins)
-                histogram2, bins = numpy.histogram(hist2, bins=self.bins)
-                histogram_coinc, bins = numpy.histogram(coinc, bins=self.bins)
+                histogram1, bins = numpy.histogram(hist1, bins=self.bins, density=True)
+                histogram2, bins = numpy.histogram(hist2, bins=self.bins, density=True)
+                histogram_coinc, bins = numpy.histogram(coinc, bins=self.bins, density=True)
                 self.histBlock_ent1[self.BlockIndex] = histogram1
                 self.histBlock_ent2[self.BlockIndex] = histogram2
                 self.histBlock_coinc[self.BlockIndex] = histogram_coinc

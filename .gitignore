@@ -1,0 +1,47 @@
+.idea/
+.vscode/
+2 nm filter JSI/
+8 nm filter JSI/
+CAR Scan No Muxes 3s save/
+CoincidenceExample.py
+CoincidenceExample.pyc
+CoincidenceExample.pyo
+CoincidenceExampleWindow.py
+CoincidenceExampleWindow.pyc
+CoincidenceExampleWindow.pyo
+CoincidenceExampleWindow.ui
+CoincidenceExampleWindow_4chan.ui
+CoincidenceExampleWindow_Ent.py
+CoincidenceExampleWindow_Ent_PLL.py
+CoincidenceExampleWindow_Ent_PLL_auto.py
+CoincidenceExampleWindow_m.py
+CoincidenceExampleWindow_m.ui
+CoincidenceExampleWindow_m2.py
+CoincidenceExampleWindow_m4.py
+CoincidenceExample_Ent.py
+CoincidenceExample_Ent_PLL.py
+CoincidenceExample_Ent_quick.py
+CoincidenceExample_Ent_quick_d.py
+CoincidenceExample_HighRes.py
+CoincidenceExample_HighRespy
+CoincidenceExample_Jitterate.py
+CoincidenceExample_Jitterate_BasicJitterScan.py
+CoincidenceExample_SimpleHist.py
+CoincidenceExample_SimpleHistHRS.py
+HistogramExampleWindow.py
+TagswithHistogram.py
+__pycache__/
+channel jsi large 16 sept/
+config_1/
+config_2/
+controlling_voltage_source.py
+ent data jsi aug 8th/
+old ent data 7.6.2022/
+old_data/
+pyo3-example/
+rust-analyzer-linux-arm64.vsix
+rust_pll/
+script backup 5.11.2022/
+test_yaml_loader.py
+testing_highres.py
+testingmatplotlib.py
