@@ -991,8 +991,8 @@ class CoincidenceExample(QMainWindow):
             clock_channel,
             mult=50000,  # clock multiplier
             phase=0,
-            deriv=400,
-            prop=1e-13,
+            deriv=600,
+            prop=2e-13,
             n_bins=800000,
         )
 

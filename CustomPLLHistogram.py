@@ -165,7 +165,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         buffer_tag_hist = 0
         freq = 1 / period
         zero_cycles = 0
-        test_factor = 100000000000000000
+        test_factor = 0 #1000000000 # 000000000
 
         this = np.ones(5)*4.9345
         if init:
@@ -191,7 +191,11 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             hist_2_idx = 0
             coinc_idx = 0
             
-
+        # ToDo
+        # Make integer and float parts of clock0
+        # I'ts possible I'm having trouble making clock0 an int because it WANTS to be a float...
+        # Make sure they are used correctly in the rest of the visualization code. 
+        # Or make those tracking histograms here, in numba. 
         
 
         for i, tag in enumerate(tags):
@@ -201,11 +205,11 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 clock_data[clock_idx] = current_clock
                 if clock0 == -1:
                     # clock0 = current_clock - period
-                    clock0 = int(current_clock - period)
+                    clock0 = np.int64(current_clock - period)
                 # arg = ((current_clock - (clock0 + period))* 2 * math.pi)
                 #####
-                if i == 32:
-                    print("this: ", this.astype(np.int64))
+                # if i == 32:
+                #     print("this: ", this.astype(np.int64))
                 ####
                 # clock0_int = clock0.astype(np.int64)
                 # clock0_dec = clock0 - clock0_int
@@ -220,8 +224,10 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 # arg1 = (arg1 - new_c_dec) * 2 * math.pi
                 #####
 
-                arg_int = current_clock - clock0 #should both be int64s
+
+                arg_int = np.int64(current_clock - clock0) #should both be int64s
                 arg = (arg_int - period) * 2 * math.pi # now its a float
+
                 arg2 = arg / period
                 phi0 = math.sin(arg2)
                 filterr = phi0 + (phi0 - phi_old) * deriv
@@ -270,7 +276,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 # if i == 32:
                 #     print(test)
                 adj = cycles * period
-                clock0 = clock0 + int(adj)
+                clock0 = clock0 + np.int64(adj)
+                # clock0 = clock0 + adj
 
                 lclock_data[clock_idx] = clock0
                 phi_old = phi0
