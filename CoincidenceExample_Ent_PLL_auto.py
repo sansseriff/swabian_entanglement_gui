@@ -13,6 +13,7 @@ from matplotlib.figure import Figure
 # Please use the QtDesigner to edit the ui interface file
 from CoincidenceExampleWindow_Ent_PLL import Ui_CoincidenceExample
 
+# from CustomPLLHistogram import CustomPLLHistogram
 from CustomPLLHistogram import CustomPLLHistogram
 from snspd_measure.inst.teledyneT3PS import teledyneT3PS
 import viz
@@ -251,7 +252,7 @@ class CoincidenceExample(QMainWindow):
 
         if self.ui.LogScaleCheck.isChecked():
             self.correlationAxis.set_yscale("log")
-            self.correlationAxis.set_ylim(.005,.04)
+            # self.correlationAxis.set_ylim(.005,.04)
         else:
             self.correlationAxis.set_yscale("linear")
 
@@ -344,9 +345,9 @@ class CoincidenceExample(QMainWindow):
             max = numpy.max(hist1)
             print("max is: ", max)
             self.bins = numpy.arange(1, max)
-            histogram1, bins = numpy.histogram(hist1, bins=self.bins, density=True)
-            histogram2, bins = numpy.histogram(hist2, bins=self.bins, density=True)
-            histogram_coinc, bins = numpy.histogram(coinc, bins=self.bins, density=True)
+            histogram1, bins = numpy.histogram(hist1, bins=self.bins)
+            histogram2, bins = numpy.histogram(hist2, bins=self.bins)
+            histogram_coinc, bins = numpy.histogram(coinc, bins=self.bins)
 
             self.histBlock_ent1 = numpy.zeros(
                 (int(self.ui.IntTime.value() * 10), len(histogram1))
@@ -389,7 +390,7 @@ class CoincidenceExample(QMainWindow):
             self.coinc_line = self.coincAxis.plot(self.coinc_x, self.coinc_y, color="k")
             if self.ui.LogScaleCheck.isChecked():
                 self.correlationAxis.set_yscale("log")
-                self.correlationAxis.set_ylim(.005,.04)
+                # self.correlationAxis.set_ylim(.005,.04)
             else:
                 self.correlationAxis.set_yscale("linear")
 
@@ -928,10 +929,28 @@ class CoincidenceExample(QMainWindow):
         self.ui.delayB.setValue(90000)
         self.ui.correlationBinwidth.setValue(10)
         self.ui.correlationBins.setValue(36000)  # that's 300 ns
+        self.correlation = Histogram(
+                self.tagger,
+                # self.a_combined.getChannel(),
+                # self.b_combined.getChannel(),
+                self.active_channels[1],
+                self.active_channels[0],
+                self.ui.correlationBinwidth.value(),
+                self.ui.correlationBins.value(),
+            )
 
-        sleep(0.1)
+        self.tagger.sync()
+
+        
+        
+        _ = self.correlation.getData()
+        sleep(0.3)
         res = self.correlation.getData()
         index = self.correlation.getIndex()
+        plt.plot(index,res)
+        plt.show()
+
+
         print("picoseconds of max: ", index[res.argmax()])
         time_from_zero = 180000 - index[res.argmax()]  # could be positive or negative
         hist_start_time = time_from_zero  #  + 250
@@ -991,10 +1010,23 @@ class CoincidenceExample(QMainWindow):
             clock_channel,
             mult=50000,  # clock multiplier
             phase=0,
-            deriv=400,
-            prop=3e-13,
+            deriv=200,
+            prop=9e-13,
             n_bins=800000,
         )
+        # self.PLL = CustomPLLHistogram(
+        #     self.tagger,
+        #     data_channel_1,
+        #     data_channel_2,
+        #     clock_channel,
+        #     mult=1,  # clock multiplier
+        #     phase=0,
+        #     deriv=300,
+        #     prop=1.8e-12,
+        #     n_bins=800000,
+        # )
+
+        
 
     def clockRefMode(self):
         self.load_file_params()
@@ -1317,7 +1349,7 @@ class CoincidenceExample(QMainWindow):
             if self.ent:
                 if self.ui.LogScaleCheck.isChecked():
                     self.correlationAxis.set_yscale("log")
-                    self.correlationAxis.set_ylim(.005,.04)
+                    # self.correlationAxis.set_ylim(.005,.04)
                 else:
                     self.correlationAxis.set_yscale("linear")
                 ##############
@@ -1344,9 +1376,9 @@ class CoincidenceExample(QMainWindow):
                 self.clockAxis.relim()
                 ##############
 
-                histogram1, bins = numpy.histogram(hist1, bins=self.bins, density=True)
-                histogram2, bins = numpy.histogram(hist2, bins=self.bins, density=True)
-                histogram_coinc, bins = numpy.histogram(coinc, bins=self.bins, density=True)
+                histogram1, bins = numpy.histogram(hist1, bins=self.bins)
+                histogram2, bins = numpy.histogram(hist2, bins=self.bins)
+                histogram_coinc, bins = numpy.histogram(coinc, bins=self.bins)
                 self.histBlock_ent1[self.BlockIndex] = histogram1
                 self.histBlock_ent2[self.BlockIndex] = histogram2
                 self.histBlock_coinc[self.BlockIndex] = histogram_coinc

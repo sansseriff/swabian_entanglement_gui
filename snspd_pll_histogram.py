@@ -171,19 +171,21 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
 
         this = np.ones(5)*4.9345
         if init:
-            print("type: ", tags.dtype)
-            # print("extra info: ", tags[0].shape)
-            clock_idx = 0
-            clock_portion = np.zeros(1000, dtype=np.uint64)
+            # print("type: ", tags.dtype)
+            # # print("extra info: ", tags[0].shape)
+            # clock_idx = 0
+            # clock_portion = np.zeros(1000, dtype=np.uint64)
 
-            for clock_idx, tag in enumerate(tags[:1000]):
-                if tag["channel"] == clock_channel:
-                    clock_portion[clock_idx] = tag["time"]+test_factor
-                    clock_idx += 1
+            # for clock_idx, tag in enumerate(tags[:1000]):
+            #     if tag["channel"] == clock_channel:
+            #         clock_portion[clock_idx] = tag["time"]+test_factor
+            #         clock_idx += 1
 
-            # Initial Estimates
-            clock_portion = clock_portion[clock_portion > 0]  # cut off extra zeros
-            period = (clock_portion[-1] - clock_portion[0]) / (len(clock_portion) - 1)
+            # # Initial Estimates
+            # clock_portion = clock_portion[clock_portion > 0]  # cut off extra zeros
+            # period = (clock_portion[-1] - clock_portion[0]) / (len(clock_portion) - 1)
+
+            period = 12227780.32947103/50000
             freq = 1 / period
             init = 0
             clock0 = -1
@@ -196,9 +198,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
 
         for i, tag in enumerate(tags):
             q = q + 1
-            # if i == 32:
-            #     print("period: ", period)
-            if tag["channel"] == clock_channel:
+            if tag["channel"] == -5:
                 current_clock = tag["time"]+test_factor
                 clock_data[clock_idx] = current_clock
                 if clock0 == -1:
@@ -211,30 +211,36 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 arg = arg_int - clock0_dec
                 arg = (arg - period) * 2 * math.pi # now its a float
                 arg = arg / period
+                
                 phi0 = math.sin(arg)
-                filterr = phi0 + (phi0 - phi_old) * deriv
-                freq = freq - filterr * prop
+                if i == 32:
+                    print("arg/2pi: ", arg/(2 * math.pi))
+                    print("sin(arg): ", phi0)
 
-                # this will handle missed clocks
-                cycles = round((current_clock - clock0) / period)
-                period = 1 / freq
-                adj = cycles * period
-                adj_int = np.int64(adj)
-                adj_dec = adj - adj_int
+                if abs(phi0) <= 0.13:
+                    filterr = phi0 + (phi0 - phi_old) * deriv
+                    freq = freq - filterr * prop
 
-                clock0 = clock0 + adj_int
-                clock0_dec = clock0_dec + adj_dec
-                if clock0_dec >= 1:
-                    int_add = np.int64(clock0_dec)
-                    clock0 = clock0 + int_add
-                    clock0_dec = clock0_dec - int_add
+                    # this will handle missed clocks
+                    cycles = round((current_clock - clock0) / period)
+                    period = 1 / freq
+                    adj = cycles * period
+                    adj_int = np.int64(adj)
+                    adj_dec = adj - adj_int
 
-                # clock0 = clock0 + adj
+                    clock0 = clock0 + adj_int
+                    clock0_dec = clock0_dec + adj_dec
+                    if clock0_dec >= 1:
+                        int_add = np.int64(clock0_dec)
+                        clock0 = clock0 + int_add
+                        clock0_dec = clock0_dec - int_add
 
-                lclock_data[clock_idx] = clock0
-                lclock_data_dec[clock_idx] = clock0_dec
-                phi_old = phi0
-                clock_idx = clock_idx + 1
+                    # clock0 = clock0 + adj
+
+                    lclock_data[clock_idx] = clock0
+                    lclock_data_dec[clock_idx] = clock0_dec
+                    phi_old = phi0
+                    clock_idx = clock_idx + 1
 
             if (tag["channel"] == data_channel_1) or (tag["channel"] == data_channel_2):
                 if clock0 != -1:
