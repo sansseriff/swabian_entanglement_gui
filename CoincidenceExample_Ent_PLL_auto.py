@@ -18,6 +18,7 @@ from CustomPLLHistogram import CustomPLLHistogram
 from snspd_measure.inst.teledyneT3PS import teledyneT3PS
 import viz
 import threading
+from numba import njit
 
 # numpy and math for statistical analysis
 import numpy
@@ -927,6 +928,7 @@ class CoincidenceExample(QMainWindow):
     def zoomInOnPeak(self):
         self.ui.delayA.setValue(-90000)
         self.ui.delayB.setValue(90000)
+        self.ui.delayC.setValue(0)
         self.ui.correlationBinwidth.setValue(10)
         self.ui.correlationBins.setValue(36000)  # that's 300 ns
         self.correlation = Histogram(
@@ -947,8 +949,7 @@ class CoincidenceExample(QMainWindow):
         sleep(0.3)
         res = self.correlation.getData()
         index = self.correlation.getIndex()
-        plt.plot(index,res)
-        plt.show()
+        
 
 
         print("picoseconds of max: ", index[res.argmax()])
@@ -964,6 +965,50 @@ class CoincidenceExample(QMainWindow):
         # self.ui.delayB.setValue(-double_adjustment)
         self.ui.correlationBins.setValue(500)
         self.ui.correlationBinwidth.setValue(1)
+        self.updateMeasurements()
+
+        persistentData_ent1 = numpy.sum(self.histBlock_ent1, axis=0)
+        persistentData_ent2 = numpy.sum(self.histBlock_ent2, axis=0)
+
+
+        persistentData_ent1_z = persistentData_ent1 - numpy.sum(persistentData_ent1)/len(persistentData_ent1)
+        persistentData_ent2_z = persistentData_ent2 - numpy.sum(persistentData_ent2)/len(persistentData_ent2)
+        
+        # plt.plot(persistentData_ent1)
+        # plt.plot(persistentData_ent2)
+        print(numpy.sum(persistentData_ent1))
+        print(numpy.sum(persistentData_ent2))
+        
+        similar = self.match_filter(persistentData_ent1_z,persistentData_ent2_z)
+        # self.ui.delayC.setValue(numpy.argmax(similar))
+        print("length of persistent data: ", len(persistentData_ent2_z))
+        self.ui.delayA.setValue(self.offset_a + numpy.argmax(similar))
+        
+
+        guass = self.gaussian(80, 40, 15)
+        extra_len = len(persistentData_ent1) - 160
+        guass_ext = self.gaussian(int(extra_len), int(extra_len/2), 15)
+
+        # create psuedo-data that's perfectly centered
+        base_array = numpy.concatenate((guass, 
+                                        guass*1.5,
+                                        guass_ext))
+        base_array = numpy.roll(base_array,-18) # fudge value
+        clock_similar = self.match_filter(persistentData_ent1,base_array)
+        self.ui.delayC.setValue(-numpy.argmax(clock_similar))
+
+
+    def gaussian(self, length, mu, sig):
+        x = numpy.arange(length)
+        return numpy.exp(-numpy.power(x - mu, 2.) / (2 * numpy.power(sig, 2.)))
+
+    def match_filter(self, data1, data2):
+        similarity = []
+        for mult in range(len(data1)):
+            similarity.append(numpy.sum(data1*data2))
+            data1 = numpy.roll(data1, 1)
+
+        return numpy.array(similarity)
 
     def load_file_params(self):
 
