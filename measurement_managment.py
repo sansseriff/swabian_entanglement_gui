@@ -4,8 +4,6 @@ import numpy as np
 import json
 import random
 
-from collections import deque
-
 """
 Actions can contain other actions, 
 or actions can be customized to do specific things
@@ -17,7 +15,7 @@ or actions can be customized to do specific things
 
 class Action:
     def __init__(self):
-        self.event_list = deque()
+        self.event_list = []
         self.init_time = -1
         self.results = []
         self.pass_state = False
@@ -32,14 +30,13 @@ class Action:
             return {"state": "passed"}
             """remember how I decided an object should be allowed 
             to deactivate itself, but it should not delete itself"""
-        response = self.event_list.popleft().evaluate(current_time, counts)
-
+        response = self.event_list[0].evaluate(current_time, counts)
         if (
             response["state"] == "finished"
         ):  # might want to change these to response.get()
             response.pop("state", None)
             self.results.append(response)
-
+            self.event_list.pop(0)
             if len(self.event_list) == 0:
                 print("finished event action: ", self.__class__.__name__)
                 self.pass_state = True  # deactivates this function in this object
@@ -230,12 +227,13 @@ class DependentAction(Action):
             return {"state": "passed"}
             """remember how I decided an object should be allowed 
             to deactivate itself, but it should not delete itself"""
-        response = self.event_list.popleft().evaluate(current_time, counts)
+        response = self.event_list[0].evaluate(current_time, counts)
         if (
             response["state"] == "finished"
         ):  # might want to change these to response.get()
             response.pop("state", None)
             self.results.append(response)
+            self.event_list.pop(0)
             if len(self.event_list) == 0:
                 print("finished event action: ", self.__class__.__name__)
                 self.pass_state = True  # deactivates this function in this object
@@ -346,7 +344,7 @@ class Minimize(Action):
             self.vsource.setVoltage(self.channel, round(self.voltage, 3))
             self.init = True
 
-        response = self.event_list.evaluate(current_time, counts)
+        response = self.event_list[0].evaluate(current_time, counts)
         # print("response: ", response["state"])
         if response["state"] == "finished":
             self.event_list[0].reset()
