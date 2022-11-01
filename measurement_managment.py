@@ -4,6 +4,8 @@ import numpy as np
 import json
 import random
 
+from collections import deque
+
 """
 Actions can contain other actions, 
 or actions can be customized to do specific things
@@ -15,7 +17,7 @@ or actions can be customized to do specific things
 
 class Action:
     def __init__(self):
-        self.event_list = []
+        self.event_list = deque()
         self.init_time = -1
         self.results = []
         self.pass_state = False
@@ -30,13 +32,14 @@ class Action:
             return {"state": "passed"}
             """remember how I decided an object should be allowed 
             to deactivate itself, but it should not delete itself"""
-        response = self.event_list[0].evaluate(current_time, counts)
+        response = self.event_list.popleft().evaluate(current_time, counts)
+
         if (
             response["state"] == "finished"
         ):  # might want to change these to response.get()
             response.pop("state", None)
             self.results.append(response)
-            self.event_list.pop(0)
+
             if len(self.event_list) == 0:
                 print("finished event action: ", self.__class__.__name__)
                 self.pass_state = True  # deactivates this function in this object
@@ -218,11 +221,6 @@ class VoltageAndIntegrate(Action):
         return super().evaluate(current_time, counts, **kwargs)
 
 
-# class ScanAndMinimize(Action):
-#     def __init__(self, scan_params, vsource, change_rate, init_voltage):
-#         super().__init__()
-#         self.add_action(Scan(scan_params, vsource))
-#         self.add_action(Minimize(change_rate, vsource, init_voltage))
 class DependentAction(Action):
     def __init__(self):
         super().__init__()
@@ -232,13 +230,12 @@ class DependentAction(Action):
             return {"state": "passed"}
             """remember how I decided an object should be allowed 
             to deactivate itself, but it should not delete itself"""
-        response = self.event_list[0].evaluate(current_time, counts)
+        response = self.event_list.popleft().evaluate(current_time, counts)
         if (
             response["state"] == "finished"
         ):  # might want to change these to response.get()
             response.pop("state", None)
             self.results.append(response)
-            self.event_list.pop(0)
             if len(self.event_list) == 0:
                 print("finished event action: ", self.__class__.__name__)
                 self.pass_state = True  # deactivates this function in this object
@@ -250,11 +247,17 @@ class DependentAction(Action):
                 if self.save:
                     self.do_save()
                 return self.final_state
+            # Dependent Action
             # take the data and put give it to the next object
+            self.flatten_response(response)
             self.evaluate(current_time, counts, prev_data=response)
 
         # this intermediate return can be passed to a graph by ConcurrentAction
         return {"state": "waiting", "results": response}
+
+    def flatten_response(self, response):
+        # used for pretty print
+        print(json.dumps(response, sort_keys=True, indent=4))
 
 
 class Scan(Action):
@@ -343,7 +346,7 @@ class Minimize(Action):
             self.vsource.setVoltage(self.channel, round(self.voltage, 3))
             self.init = True
 
-        response = self.event_list[0].evaluate(current_time, counts)
+        response = self.event_list.evaluate(current_time, counts)
         # print("response: ", response["state"])
         if response["state"] == "finished":
             self.event_list[0].reset()
@@ -394,6 +397,7 @@ class ConcurrentAction(Action):
             return {"state": "passed"}
 
         for object in self.objects:
+            # actions alternate sharing intermediate results
             self.intermediate_result = object.evaluate(
                 current_time, counts, intermediate=self.intermediate_result
             )

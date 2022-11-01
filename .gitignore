@@ -45,3 +45,4 @@ script backup 5.11.2022/
 test_yaml_loader.py
 testing_highres.py
 testingmatplotlib.py
+*.json
