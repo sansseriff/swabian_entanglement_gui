@@ -1205,7 +1205,7 @@ class CoincidenceExample(QMainWindow):
         scan_and_minimize.add_action(Minimize(0.005, self.VSource, 0))
 
         # how do you tell Minimize where to find the curve with the max and the min values? It doesn't exist yet...
-        # if these are not finihed, I want the result to bubble up the the graph object.
+        # if these are not finihed, I want the result to bubble up to the the graph object.
         # if they are finished, I want them to export data to either the next object or the graph object.
 
         tracker.add_action(

@@ -70,6 +70,9 @@ class Action:
     def __str__(self):
         return "Action Object"
 
+    def pretty_print(self, data):
+        print(json.dumps(data, sort_keys=True, indent=4))
+
 
 class SetVoltage(Action):
     def __init__(self, voltage, vsource, channel):
@@ -420,9 +423,6 @@ class Minimize(Action):
     def __str__(self):
         return "Minimize Action Object"
 
-    def pretty_print(self, data):
-        print(json.dumps(data, sort_keys=True, indent=4))
-
 
 class ConcurrentAction(Action):
     # do multiple evalations of multiple objects in the same event loop
@@ -444,7 +444,7 @@ class ConcurrentAction(Action):
         for object in self.objects:
             # actions alternate sharing intermediate results
             self.intermediate_result = object.evaluate(
-                current_time, counts, intermediate=self.intermediate_result
+                current_time, counts, graph_data=self.intermediate_result
             )
 
             if self.intermediate_result.get("state") == "finished":
@@ -471,14 +471,36 @@ class GraphUpdate(Action):
         self.pass_state = False
         self.x_data = []
         self.y_data = []
+        self.axis.clear()
+        self.plot = self.axis.plot(self.x_data, self.y_data)
+
+    def results_dive(self, dic, key):
+        if dic is None:
+            return dic
+
+        if dic.get("results") is not None:
+
+            return self.results_dive(dic.get("results"), key)
+        else:
+            # print(dic.get(key))
+            print(dic)
+            return dic.get(key)
 
     def evaluate(self, current_time, counts, **kwargs):
         self.data = kwargs
+        off_state = {"state": "not_graphing", "name": self.__class__.__name__}
 
-        # if len(self.data) > 0:
-        #     print("##### Sarting: from graph #####")
-        #     print(self.data)
-        #     print("##### Ending: from graph #####")
+        graph_data = self.data.get("graph_data")
+        print("results: ", self.results_dive(graph_data, "delta_time"))
+
+        delta_time = self.results_dive(graph_data, "delta_time")
+        counts = self.results_dive(graph_data, "counts")
+        voltage = self.results_dive(graph_data, "voltage")
+
+        if (counts is not None) and (delta_time is not None) and (voltage is not None):
+            self.x_data.append(voltage)
+            self.y_data.append(counts / delta_time)
+            self.plot[0].set_data(self.x_data, self.y_data)
 
         return {"state": "graphing", "name": self.__class__.__name__}
 
