@@ -403,7 +403,7 @@ class CoincidenceExample(QMainWindow):
         self.correlationAxis.set_xlabel("time (ns)")
         self.correlationAxis.set_ylabel("Counts")
         self.correlationAxis.set_title("Clock Referenced Histograms")
-        self.correlationAxis.grid(True, which='both')
+        self.correlationAxis.grid(True, which="both")
 
         self.clockAxis.set_ylim(-100, 100)
         self.clockAxis.grid()
@@ -932,25 +932,21 @@ class CoincidenceExample(QMainWindow):
         self.ui.correlationBinwidth.setValue(10)
         self.ui.correlationBins.setValue(36000)  # that's 300 ns
         self.correlation = Histogram(
-                self.tagger,
-                # self.a_combined.getChannel(),
-                # self.b_combined.getChannel(),
-                self.active_channels[1],
-                self.active_channels[0],
-                self.ui.correlationBinwidth.value(),
-                self.ui.correlationBins.value(),
-            )
+            self.tagger,
+            # self.a_combined.getChannel(),
+            # self.b_combined.getChannel(),
+            self.active_channels[1],
+            self.active_channels[0],
+            self.ui.correlationBinwidth.value(),
+            self.ui.correlationBins.value(),
+        )
 
         self.tagger.sync()
 
-        
-        
         _ = self.correlation.getData()
         sleep(0.3)
         res = self.correlation.getData()
         index = self.correlation.getIndex()
-        
-
 
         print("picoseconds of max: ", index[res.argmax()])
         time_from_zero = 180000 - index[res.argmax()]  # could be positive or negative
@@ -970,42 +966,41 @@ class CoincidenceExample(QMainWindow):
         persistentData_ent1 = numpy.sum(self.histBlock_ent1, axis=0)
         persistentData_ent2 = numpy.sum(self.histBlock_ent2, axis=0)
 
+        persistentData_ent1_z = persistentData_ent1 - numpy.sum(
+            persistentData_ent1
+        ) / len(persistentData_ent1)
+        persistentData_ent2_z = persistentData_ent2 - numpy.sum(
+            persistentData_ent2
+        ) / len(persistentData_ent2)
 
-        persistentData_ent1_z = persistentData_ent1 - numpy.sum(persistentData_ent1)/len(persistentData_ent1)
-        persistentData_ent2_z = persistentData_ent2 - numpy.sum(persistentData_ent2)/len(persistentData_ent2)
-        
         # plt.plot(persistentData_ent1)
         # plt.plot(persistentData_ent2)
         print(numpy.sum(persistentData_ent1))
         print(numpy.sum(persistentData_ent2))
-        
-        similar = self.match_filter(persistentData_ent1_z,persistentData_ent2_z)
+
+        similar = self.match_filter(persistentData_ent1_z, persistentData_ent2_z)
         # self.ui.delayC.setValue(numpy.argmax(similar))
         print("length of persistent data: ", len(persistentData_ent2_z))
         self.ui.delayA.setValue(self.offset_a + numpy.argmax(similar))
-        
 
         guass = self.gaussian(80, 40, 15)
         extra_len = len(persistentData_ent1) - 160
-        guass_ext = self.gaussian(int(extra_len), int(extra_len/2), 15)
+        guass_ext = self.gaussian(int(extra_len), int(extra_len / 2), 15)
 
         # create psuedo-data that's perfectly centered
-        base_array = numpy.concatenate((guass, 
-                                        guass*1.5,
-                                        guass_ext))
-        base_array = numpy.roll(base_array,-18) # fudge value
-        clock_similar = self.match_filter(persistentData_ent1,base_array)
+        base_array = numpy.concatenate((guass, guass * 1.5, guass_ext))
+        base_array = numpy.roll(base_array, -18)  # fudge value
+        clock_similar = self.match_filter(persistentData_ent1, base_array)
         self.ui.delayC.setValue(-numpy.argmax(clock_similar))
-
 
     def gaussian(self, length, mu, sig):
         x = numpy.arange(length)
-        return numpy.exp(-numpy.power(x - mu, 2.) / (2 * numpy.power(sig, 2.)))
+        return numpy.exp(-numpy.power(x - mu, 2.0) / (2 * numpy.power(sig, 2.0)))
 
     def match_filter(self, data1, data2):
         similarity = []
         for mult in range(len(data1)):
-            similarity.append(numpy.sum(data1*data2))
+            similarity.append(numpy.sum(data1 * data2))
             data1 = numpy.roll(data1, 1)
 
         return numpy.array(similarity)
@@ -1071,8 +1066,6 @@ class CoincidenceExample(QMainWindow):
         #     n_bins=800000,
         # )
 
-        
-
     def clockRefMode(self):
         self.load_file_params()
 
@@ -1091,7 +1084,6 @@ class CoincidenceExample(QMainWindow):
                 params = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
                 print(exc)
-
 
         """
         GetVisibility:
@@ -1194,43 +1186,6 @@ class CoincidenceExample(QMainWindow):
         main event loop. (this is a way of avoiding a series of messy
         if statments that determine what to do at what time
         in the event loop) """
-        # tracker.add_action(
-        #     SetVoltage(
-        #         params["int_1"]["start_voltage"],
-        #         self.VSource,
-        #         params["voltage_channel"],
-        #     )
-        # )
-        # tracker.add_action(Wait(params["wait"]))
-        # tracker.add_action(Scan(params["int_1"], self.VSource))
-        # tracker.add_action(
-        #     SetVoltage(
-        #         params["int_2"]["start_voltage"],
-        #         self.VSource,
-        #         params["voltage_channel"],
-        #     )
-        # )
-        # tracker.add_action(Wait(params["wait"]))
-
-        # tracker.add_action(Scan(params["int_fast"], self.VSource))
-        # tracker.add_action(Minimize(0.05, self.VSource, 0.5))
-
-        # tracker.add_action(
-        #     SetVoltage(
-        #         1.66,
-        #         self.VSource,
-        #         params["voltage_channel"],
-        #     )
-        # )
-        # tracker.add_action(Wait(10))
-        # tracker.add_action(
-        #     SetVoltage(
-        #         params["min_voltage"],
-        #         self.VSource,
-        #         params["voltage_channel"],
-        #     )
-        # )
-        # tracker.add_action(Wait(10))
 
         # +-Concurrent----------+
         # | +-Action-+ +------+ |
@@ -1247,7 +1202,7 @@ class CoincidenceExample(QMainWindow):
 
         scan_and_minimize = DependentAction()
         scan_and_minimize.add_action(Scan(params["int_fast"], self.VSource))
-        scan_and_minimize.add_action(Minimize(0.005, self.VSource, 2.57))
+        scan_and_minimize.add_action(Minimize(0.005, self.VSource, 0))
 
         # how do you tell Minimize where to find the curve with the max and the min values? It doesn't exist yet...
         # if these are not finihed, I want the result to bubble up the the graph object.
@@ -1402,19 +1357,23 @@ class CoincidenceExample(QMainWindow):
                 clocks_div = clocks[:: self.divider]
                 pclocks_div = pclocks[:: self.divider]
                 x_clocks = numpy.linspace(0, 1, len(clocks_div))
-                step = int((pclocks_div[-1] - pclocks_div[0])/(len(pclocks_div)-1))
-                basis_div = numpy.arange(pclocks_div[0], pclocks_div[-1], step, dtype=numpy.int64)
+                step = int((pclocks_div[-1] - pclocks_div[0]) / (len(pclocks_div) - 1))
+                basis_div = numpy.arange(
+                    pclocks_div[0], pclocks_div[-1], step, dtype=numpy.int64
+                )
 
                 # do the big subtraction with int64s:
                 clock_dirty = basis_div - clocks_div
                 clock_clean = basis_div - pclocks_div
 
                 # make a array to remove that last bit of offset:
-                final_offset = numpy.linspace(clock_clean[0], clock_clean[-1], len(clock_clean))
+                final_offset = numpy.linspace(
+                    clock_clean[0], clock_clean[-1], len(clock_clean)
+                )
 
                 # then another subtraction
-                clock_dirty = clock_dirty - final_offset # typecast to float
-                clock_clean = clock_clean - final_offset # typecast to float
+                clock_dirty = clock_dirty - final_offset  # typecast to float
+                clock_clean = clock_clean - final_offset  # typecast to float
                 self.plt_clock_dirty[0].set_data(x_clocks, clock_dirty)
                 # self.plt_clock_clean[0].set_xdata(x_clocks)
                 self.plt_clock_clean[0].set_data(x_clocks, clock_clean)

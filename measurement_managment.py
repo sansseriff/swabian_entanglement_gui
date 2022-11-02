@@ -43,7 +43,7 @@ class Action:
                 self.final_state = {
                     "state": "finished",
                     "name": self.__class__.__name__,
-                    "results": self.results,
+                    "results": self.flatten(self.results),
                 }
                 if self.save:
                     self.do_save()
@@ -54,6 +54,10 @@ class Action:
         return {"state": "waiting", "results": response}
 
         # how do I bubble up the results from the scan? In each evaluate?
+
+    def flatten(self, results):
+        # to be overridden by child classes
+        return results
 
     def do_save(self):
         with open(self.save_name, "w") as file:
@@ -217,6 +221,16 @@ class VoltageAndIntegrate(Action):
     def evaluate(self, current_time, counts, **kwargs):
         return super().evaluate(current_time, counts, **kwargs)
 
+    def flatten(self, results):
+        res = {}
+        check_list = ["voltage", "time_waited", "current", "counts", "delta_time"]
+        for result in results:
+            for item in check_list:
+                if result.get(item) is not None:
+                    res[item] = result.get(item)
+
+        return res
+
 
 class DependentAction(Action):
     def __init__(self):
@@ -227,7 +241,9 @@ class DependentAction(Action):
             return {"state": "passed"}
             """remember how I decided an object should be allowed 
             to deactivate itself, but it should not delete itself"""
-        response = self.event_list[0].evaluate(current_time, counts)
+        # need to drop down the pre_data from the recursive call!! That's confusing..
+        # do that by repeating the **kwargs here:
+        response = self.event_list[0].evaluate(current_time, counts, **kwargs)
         if (
             response["state"] == "finished"
         ):  # might want to change these to response.get()
@@ -247,7 +263,7 @@ class DependentAction(Action):
                 return self.final_state
             # Dependent Action
             # take the data and put give it to the next object
-            self.flatten_response(response)
+            # self.flatten_response(response)
             self.evaluate(current_time, counts, prev_data=response)
 
         # this intermediate return can be passed to a graph by ConcurrentAction
@@ -291,6 +307,31 @@ class Scan(Action):
     def print(self):
         print(self.__class__)
 
+    def flatten(self, results):
+        res = {}
+        for i, result in enumerate(results):
+            data = result.get("results")  # data is something like:
+            """
+            {
+                "counts": 5279,
+                "current": 0.0042,
+                "delta_time": 1.047443151473999,
+                "time_waited": 0.12920880317687988,
+                "voltage": 0.1002
+            }
+            """
+            if i == 0:
+                for key in data.keys():
+                    res[key] = []
+                    res[key].append(data[key])
+            else:
+                for key in data.keys():
+                    res[key].append(data[key])
+
+        arr = np.array(res["counts"]) / np.array(res["delta_time"])
+        res["viz"] = arr.tolist()
+        return res
+
 
 class StepScan(Action):
     """
@@ -326,11 +367,12 @@ class Minimize(Action):
     def __init__(self, change_rate, vsource, init_voltage):
         super().__init__()
         self.change_rate = change_rate
-        self.add_action(Integrate(40))  # 2 seconds
+        self.add_action(Integrate(5))  # 2 seconds
         self.vsource = vsource
-        self.init_voltage = init_voltage
-        self.direction = Direction()
+        # could be overriden by scan data supplied with evaluate
         self.voltage = init_voltage
+
+        self.direction = Direction()
         self.channel = 2
         self.prev_coinc_rate = -1
         self.init = False
@@ -338,14 +380,16 @@ class Minimize(Action):
     def evaluate(self, current_time, counts, **kwargs):
         if self.init is False:
             if kwargs.get("prev_data") is not None:
-                print("previous data dump: ")
-                print(kwargs["prev_data"])
+                idx_min = np.argmin(kwargs["prev_data"]["results"]["viz"])
+                voltage_min = kwargs["prev_data"]["results"]["voltage"][idx_min]
+                print("voltage min: ", voltage_min)
+                self.voltage = voltage_min  # apply minimum from graph
+
             print("########################### VOLTAGE: ", round(self.voltage, 3))
             self.vsource.setVoltage(self.channel, round(self.voltage, 3))
             self.init = True
 
         response = self.event_list[0].evaluate(current_time, counts)
-        # print("response: ", response["state"])
         if response["state"] == "finished":
             self.event_list[0].reset()
             coinc_rate = response["counts"] / response["delta_time"]
@@ -375,6 +419,9 @@ class Minimize(Action):
 
     def __str__(self):
         return "Minimize Action Object"
+
+    def pretty_print(self, data):
+        print(json.dumps(data, sort_keys=True, indent=4))
 
 
 class ConcurrentAction(Action):
