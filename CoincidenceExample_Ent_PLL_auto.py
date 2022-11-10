@@ -63,7 +63,7 @@ from awgClient import AWGClient
 from measurement_managment import (
     Action,
     ConcurrentAction,
-    Minimize,
+    Extremum,
     SetVoltage,
     Wait,
     Integrate,
@@ -71,6 +71,7 @@ from measurement_managment import (
     StepScan,
     GraphUpdate,
     DependentAction,
+    DistributeData,
 )
 
 
@@ -343,8 +344,10 @@ class CoincidenceExample(QMainWindow):
         if self.ent:
             clocks, pclocks, hist1, hist2, coinc = self.PLL.getData()
 
-            max = numpy.max(hist1)
-            print("max is: ", max)
+            try:
+                max = numpy.max(hist1)
+            except:
+                max = 0
             self.bins = numpy.arange(1, max)
             histogram1, bins = numpy.histogram(hist1, bins=self.bins)
             histogram2, bins = numpy.histogram(hist2, bins=self.bins)
@@ -1180,8 +1183,6 @@ class CoincidenceExample(QMainWindow):
                 print(exc)
         params = params["visibility"]
 
-        tracker = Action()
-        self.event_loop_action = tracker
         """add a series of actions that will be done during the program's
         main event loop. (this is a way of avoiding a series of messy
         if statments that determine what to do at what time
@@ -1195,21 +1196,37 @@ class CoincidenceExample(QMainWindow):
         # | |+------+| |graph | |
         # | |+------+| |      | |
         # | || Mini || |      | |
-        # | ||      || |      | |
+        # | || Maxi || |      | |
         # | |+------+| |      | |
         # | +--------+ +------+ |
         # +---------------------+
 
-        scan_and_minimize = DependentAction()
-        scan_and_minimize.add_action(Scan(params["int_fast"], self.VSource))
-        scan_and_minimize.add_action(Minimize(0.005, self.VSource, 0))
+        tracker = Action()
+        self.event_loop_action = tracker
+
+        scan_and_find_extremes = DependentAction("coarse_scan")
+        scan_and_find_extremes.add_action(Scan(params["int_fast"], self.VSource))
+
+        minimum_and_maximum = DistributeData("coarse_scan")
+        minimum_and_maximum.add_action(
+            Extremum("min", 7, 0.003, self.VSource, 0, "coarse_scan")
+        )
+        minimum_and_maximum.add_action(
+            Extremum("max", 10, 0.015, self.VSource, 0, "coarse_scan")
+        )
+
+        scan_and_find_extremes.add_action(minimum_and_maximum)
 
         # how do you tell Minimize where to find the curve with the max and the min values? It doesn't exist yet...
         # if these are not finihed, I want the result to bubble up to the the graph object.
         # if they are finished, I want them to export data to either the next object or the graph object.
 
+        # these two are to get the interferometer stable before the coarse scan
+        tracker.add_action(SetVoltage(0, self.VSource, 2))
+        tracker.add_action(Wait(10))
+
         tracker.add_action(
-            ConcurrentAction(scan_and_minimize, GraphUpdate(self.clockAxis))
+            ConcurrentAction(scan_and_find_extremes, GraphUpdate(self.clockAxis))
         )
         tracker.enable_save(save_name=params["save_name"])
 
@@ -1363,8 +1380,16 @@ class CoincidenceExample(QMainWindow):
                 )
 
                 # do the big subtraction with int64s:
-                clock_dirty = basis_div - clocks_div
-                clock_clean = basis_div - pclocks_div
+                try:
+                    clock_dirty = basis_div - clocks_div
+                    clock_clean = basis_div - pclocks_div
+                except ValueError:
+                    # sometimes the basis_div above is not big enough
+                    basis_div = numpy.arange(
+                        pclocks_div[0], pclocks_div[-1] + step, step, dtype=numpy.int64
+                    )
+                    clock_dirty = basis_div - clocks_div
+                    clock_clean = basis_div - pclocks_div
 
                 # make a array to remove that last bit of offset:
                 final_offset = numpy.linspace(

@@ -235,16 +235,69 @@ class VoltageAndIntegrate(Action):
         return res
 
 
-class DependentAction(Action):
-    def __init__(self):
+class DistributeData(Action):
+    def __init__(self, data_name):
         super().__init__()
+        self.data_name = data_name
+        self.initialized = False
+
+    def evaluate(self, current_time, counts, **kwargs):
+        if self.initialized is False:
+            self.data = kwargs.get(self.data_name)
+            if kwargs.get(self.data_name) is None:
+                print("Error: injected data is None")
+            print("Data for distribution loaded")
+            self.initialized = True
+
+        if self.pass_state:
+            return {"state": "passed"}
+            """remember how I decided an object should be allowed 
+            to deactivate itself, but it should not delete itself"""
+        # need to drop down the prev_data from the recursive call!! That's confusing..
+        # do that by repeating the **kwargs here:
+        response = self.event_list[0].evaluate(
+            current_time, counts, **{self.data_name: self.data}
+        )
+        if (
+            response["state"] == "finished"
+        ):  # might want to change these to response.get()
+            response.pop("state", None)
+            self.results.append(response)
+            self.event_list.pop(0)
+            if len(self.event_list) == 0:
+                print("finished event action: ", self.__class__.__name__)
+                self.pass_state = True  # deactivates this function in this object
+                self.final_state = {
+                    "state": "finished",
+                    "name": self.__class__.__name__,
+                    "results": self.results,
+                }
+                if self.save:
+                    self.do_save()
+                return self.final_state
+
+            # Distribute Action
+            # provide the data injected during initialization
+            self.evaluate(current_time, counts, **{self.data_name: self.data})
+
+        # this intermediate return can be passed to a graph by ConcurrentAction
+        return {"state": "waiting", "results": response}
+
+    # this should take in and store some data that is provided on the first call to evaluate.
+    # then it provides that data to sub-actions when they are initialized.
+
+
+class DependentAction(Action):
+    def __init__(self, data_name):
+        super().__init__()
+        self.data_name = data_name
 
     def evaluate(self, current_time, counts, **kwargs):
         if self.pass_state:
             return {"state": "passed"}
             """remember how I decided an object should be allowed 
             to deactivate itself, but it should not delete itself"""
-        # need to drop down the pre_data from the recursive call!! That's confusing..
+        # need to drop down the prev_data from the recursive call!! That's confusing..
         # do that by repeating the **kwargs here:
         response = self.event_list[0].evaluate(current_time, counts, **kwargs)
         if (
@@ -264,17 +317,17 @@ class DependentAction(Action):
                 if self.save:
                     self.do_save()
                 return self.final_state
+
             # Dependent Action
             # take the data and put give it to the next object
-            # self.flatten_response(response)
-            self.evaluate(current_time, counts, prev_data=response)
+            self.evaluate(current_time, counts, **{self.data_name: response})
 
         # this intermediate return can be passed to a graph by ConcurrentAction
         return {"state": "waiting", "results": response}
 
-    def flatten_response(self, response):
-        # used for pretty print
-        print(json.dumps(response, sort_keys=True, indent=4))
+    # def flatten_response(self, response):
+    #     # used for pretty print
+    #     print(json.dumps(response, sort_keys=True, indent=4))
 
 
 class Scan(Action):
@@ -366,11 +419,31 @@ class StepScan(Action):
         return "Scan Action Object"
 
 
-class Minimize(Action):
-    def __init__(self, change_rate, vsource, init_voltage):
+class UnspecifiedExtremum(Exception):
+    pass
+
+
+class Extremum(Action):
+    def __init__(
+        self,
+        extremum_type,
+        integration_time,
+        change_rate,
+        vsource,
+        init_voltage,
+        data_name="prev_data",
+    ):
         super().__init__()
+        self.extremum_type = extremum_type
+        # print("is it min?: ", extremum_type == "min")
+        # print("is it max?: ", extremum_type == "max")
+        if (self.extremum_type != "min") and (self.extremum_type != "max"):
+            raise UnspecifiedExtremum(
+                f"{str(self.extremum_type)} is not 'max' or 'min'"
+            )
+
         self.change_rate = change_rate
-        self.add_action(Integrate(5))  # 2 seconds
+        self.add_action(Integrate(integration_time))
         self.vsource = vsource
         # could be overriden by scan data supplied with evaluate
         self.voltage = init_voltage
@@ -379,12 +452,21 @@ class Minimize(Action):
         self.channel = 2
         self.prev_coinc_rate = -1
         self.init = False
+        self.direction_list = []
+        self.counts_list = []
+        self.times_list = []
+        self.data_name = data_name
 
     def evaluate(self, current_time, counts, **kwargs):
         if self.init is False:
-            if kwargs.get("prev_data") is not None:
-                idx_min = np.argmin(kwargs["prev_data"]["results"]["viz"])
-                voltage_min = kwargs["prev_data"]["results"]["voltage"][idx_min]
+            if kwargs.get(self.data_name) is not None:
+                print("data loaded with name: ", self.data_name)
+                if self.extremum_type == "min":
+                    idx_extreme = np.argmin(kwargs[self.data_name]["results"]["viz"])
+                if self.extremum_type == "max":
+                    idx_extreme = np.argmax(kwargs[self.data_name]["results"]["viz"])
+
+                voltage_min = kwargs[self.data_name]["results"]["voltage"][idx_extreme]
                 print("voltage min: ", voltage_min)
                 self.voltage = voltage_min  # apply minimum from graph
 
@@ -395,28 +477,51 @@ class Minimize(Action):
         response = self.event_list[0].evaluate(current_time, counts)
         if response["state"] == "finished":
             self.event_list[0].reset()
+            self.counts_list.append(response["counts"])
+            self.times_list.append(response["delta_time"])
             coinc_rate = response["counts"] / response["delta_time"]
             print("########################### coinc rate: ", coinc_rate)
 
             if (coinc_rate == self.prev_coinc_rate) or (self.prev_coinc_rate == -1):
-                self.direction.random()
+                self.direction_list.append(self.direction.random())
             else:
-                # if coinc_rate < self.prev_coinc_rate:
-                # don't change direction
-
-                # if coinc_rate is less than previous, there's nothing
-                # to do. Keep going in that direction.
                 if coinc_rate > self.prev_coinc_rate:
-                    self.direction.reverse()
+                    # increased
+                    if self.extremum_type == "min":
+                        self.direction_list.append(self.direction.reverse())
+                    else:
+                        self.direction_list.append(self.direction())
+                        print("no direction change")
                 else:
-                    print("no direction change")
+                    # decreased
+                    if self.extremum_type == "min":
+                        self.direction_list.append(self.direction())
+                        print("no direction change")
+                    else:
+                        self.direction_list.append(self.direction.reverse())
 
             delta = self.change_rate * self.direction()
             self.voltage = self.voltage + delta
             print("########################### VOLTAGE: ", round(self.voltage, 3))
             self.vsource.setVoltage(self.channel, round(self.voltage, 3))
-
             self.prev_coinc_rate = coinc_rate
+
+            # when to stop the minimization?
+            if len(self.direction_list) > 20:
+                imbalance = self.direction_list[-20:]
+                # stop if last 20 direction changes seem to be random
+                print("imbalance list: ", imbalance)
+                print("sum of imbalance list: ", sum(imbalance))
+                if abs(sum(imbalance)) < 6:
+                    self.final_state = {
+                        "state": "finished",
+                        "name": self.__class__.__name__,
+                        "results": {
+                            "counts_list": self.counts_list,
+                            "times_list": self.times_list,
+                        },
+                    }
+                    return self.final_state
 
         return {"state": "working", "name": self.__class__.__name__}
 
@@ -483,7 +588,7 @@ class GraphUpdate(Action):
             return self.results_dive(dic.get("results"), key)
         else:
             # print(dic.get(key))
-            print(dic)
+            # print(dic)
             return dic.get(key)
 
     def evaluate(self, current_time, counts, **kwargs):
@@ -491,7 +596,7 @@ class GraphUpdate(Action):
         off_state = {"state": "not_graphing", "name": self.__class__.__name__}
 
         graph_data = self.data.get("graph_data")
-        print("results: ", self.results_dive(graph_data, "delta_time"))
+        # print("results: ", self.results_dive(graph_data, "delta_time"))
 
         delta_time = self.results_dive(graph_data, "delta_time")
         counts = self.results_dive(graph_data, "counts")
@@ -501,6 +606,9 @@ class GraphUpdate(Action):
             self.x_data.append(voltage)
             self.y_data.append(counts / delta_time)
             self.plot[0].set_data(self.x_data, self.y_data)
+            self.axis.relim()
+            self.axis.autoscale_view(True, True, True)
+            # self.canvas.draw()
 
         return {"state": "graphing", "name": self.__class__.__name__}
 
@@ -539,12 +647,14 @@ if __name__ == "__main__":
         print("option_2: ", option_2)
         print(type(kwargs))
         print(len(kwargs))
+        print(kwargs)
         # for thing in kwargs:
         #     print("   thing: ", thing)
         # for item in kwargs.keys():
         #     print("key: ", item, "thing: ", kwargs[item])
 
+    mything = "how"
     # print(concurrent)
     # print(concurrent.__class__())
 
-    myfunction(3, 56)
+    myfunction(3, 56, **{mything: "what"})
