@@ -1,7 +1,7 @@
 Channels:
   ChA:
     channel: -5
-    trigger: -.036 # volt
+    trigger: -.031 # volt
     delay: -3875 # 5993 # ns was 36153 before 5/5/2022
     # 26372 on 5.26.2022
     # 54,39: 39250
@@ -49,8 +49,8 @@ visibility:
     start_voltage: 1.4
     end_voltage: 1.8
     voltage_channel: 2
-    inter_wait_time: .5
-    steps: 81
+    inter_wait_time: .2
+    steps: 35
     time_per_point: 1
 
   int_fast:
@@ -58,7 +58,7 @@ visibility:
     end_voltage: 3.5 #nan
     voltage_channel: 2
     inter_wait_time: .3
-    steps: 70 #nan
+    steps: 50 #nan
     time_per_point: 1
 
   wait: 10

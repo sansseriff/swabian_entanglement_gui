@@ -983,7 +983,6 @@ class CoincidenceExample(QMainWindow):
 
         similar = self.match_filter(persistentData_ent1_z, persistentData_ent2_z)
         # self.ui.delayC.setValue(numpy.argmax(similar))
-        print("length of persistent data: ", len(persistentData_ent2_z))
         self.ui.delayA.setValue(self.offset_a + numpy.argmax(similar))
 
         guass = self.gaussian(80, 40, 15)
@@ -1203,17 +1202,20 @@ class CoincidenceExample(QMainWindow):
 
         tracker = Action()
         self.event_loop_action = tracker
-
         scan_and_find_extremes = DependentAction("coarse_scan")
         scan_and_find_extremes.add_action(Scan(params["int_fast"], self.VSource))
-
         minimum_and_maximum = DistributeData("coarse_scan")
-        minimum_and_maximum.add_action(
-            Extremum("min", 7, 0.003, self.VSource, 0, "coarse_scan")
+
+        minimum = Extremum(
+            "min", 2, 1, 0.02, self.VSource, 0, "coarse_scan", fine_grain_mode=True
         )
-        minimum_and_maximum.add_action(
-            Extremum("max", 10, 0.015, self.VSource, 0, "coarse_scan")
+        minimum.enable_save(save_name="minimum_data.json")
+        minimum_and_maximum.add_action(minimum)
+        maximum = Extremum(
+            "max", 1, 4, 0.2, self.VSource, 0, "coarse_scan", fine_grain_mode=True
         )
+        maximum.enable_save(save_name="maximum_data.json")
+        minimum_and_maximum.add_action(maximum)
 
         scan_and_find_extremes.add_action(minimum_and_maximum)
 

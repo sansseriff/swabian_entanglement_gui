@@ -38,7 +38,7 @@ class Action:
             self.results.append(response)
             self.event_list.pop(0)
             if len(self.event_list) == 0:
-                print("finished event action: ", self.__class__.__name__)
+                # print("finished event action: ", self.__class__.__name__)
                 self.pass_state = True  # deactivates this function in this object
                 self.final_state = {
                     "state": "finished",
@@ -146,17 +146,26 @@ class Integrate(Action):
         self.int_time = int_time
         self.counts = 0
 
+        # self.event_list = []
+        # self.init_time = -1
+        # self.results = []
+        # self.pass_state = False
+        # self.save_name = "output_file.json"
+        # self.save = False
+
     def evaluate(self, current_time, counts, **kwargs):
         if self.init_time == -1:
             self.init_time = time.time()
             # started
-            # print("####### starting integrate")
+            # DON'T Use these counts if initializing
+            return {"state": "integrating"}
 
         self.counts = self.counts + counts  # add counts
 
         if (current_time - self.init_time) > self.int_time:
             # finish up
             # print("####### ending integrate")
+
             self.delta_time = current_time - self.init_time
             self.final_state = {
                 "state": "finished",
@@ -164,6 +173,7 @@ class Integrate(Action):
                 "counts": self.counts,
                 "delta_time": self.delta_time,
             }
+            # print("integrate: ", self.final_state)
             return self.final_state
         return {"state": "integrating"}
 
@@ -428,10 +438,12 @@ class Extremum(Action):
         self,
         extremum_type,
         integration_time,
+        wait_time,
         change_rate,
         vsource,
         init_voltage,
         data_name="prev_data",
+        fine_grain_mode=False,
     ):
         super().__init__()
         self.extremum_type = extremum_type
@@ -443,19 +455,32 @@ class Extremum(Action):
             )
 
         self.change_rate = change_rate
+        self.add_action(Wait(wait_time))
         self.add_action(Integrate(integration_time))
         self.vsource = vsource
         # could be overriden by scan data supplied with evaluate
         self.voltage = init_voltage
-
+        self.fine_grain_status = "deactivated"
         self.direction = Direction()
         self.channel = 2
         self.prev_coinc_rate = -1
         self.init = False
         self.direction_list = []
+        self.direction_array = []  # a list of lists of directions.
+        # each fine-grain iteration gets its own list
+
         self.counts_list = []
         self.times_list = []
         self.data_name = data_name
+        self.cycle = 0
+        self.fine_grain_iteration = 0
+        if fine_grain_mode:
+            self.fine_grain_mode = True
+        else:
+            self.fine_grain_mode = False
+        self.data_color_list = ["#eb2121", "#db21b6", "#9a21db", "#5257d9"]
+        self.data_color = "#fcc244"
+        self.old_voltage = None
 
     def evaluate(self, current_time, counts, **kwargs):
         if self.init is False:
@@ -470,59 +495,114 @@ class Extremum(Action):
                 print("voltage min: ", voltage_min)
                 self.voltage = voltage_min  # apply minimum from graph
 
-            print("########################### VOLTAGE: ", round(self.voltage, 3))
+            print("###### VOLTAGE: ", round(self.voltage, 3))
             self.vsource.setVoltage(self.channel, round(self.voltage, 3))
             self.init = True
 
-        response = self.event_list[0].evaluate(current_time, counts)
-        if response["state"] == "finished":
-            self.event_list[0].reset()
-            self.counts_list.append(response["counts"])
-            self.times_list.append(response["delta_time"])
-            coinc_rate = response["counts"] / response["delta_time"]
-            print("########################### coinc rate: ", coinc_rate)
+        response = self.event_list[self.cycle].evaluate(current_time, counts)
 
-            if (coinc_rate == self.prev_coinc_rate) or (self.prev_coinc_rate == -1):
-                self.direction_list.append(self.direction.random())
+        if response.get("state") == "finished":
+            # DON'T CYCLE UNLESS ITS A FINISHED RESPONSE!
+            # I need to think of a more foolproof way of doing this
+
+            # What is a good way of ensuring that an action is never skipped in successive evaluations?
+            if self.cycle == 1:  # alternate bewteen Wait and integrate
+                self.cycle = 0
             else:
-                if coinc_rate > self.prev_coinc_rate:
-                    # increased
-                    if self.extremum_type == "min":
-                        self.direction_list.append(self.direction.reverse())
-                    else:
-                        self.direction_list.append(self.direction())
-                        print("no direction change")
+                self.cycle = 1
+
+            if response.get("name") == "Integrate":
+                self.event_list[1].reset()  # reset the integrate
+                self.counts_list.append(response["counts"])
+                self.times_list.append(response["delta_time"])
+                # print("integrate response: ", response)
+                coinc_rate = response["counts"] / response["delta_time"]
+                print("## coinc rate: ", round(coinc_rate, 2))
+
+                if (coinc_rate == self.prev_coinc_rate) or (self.prev_coinc_rate == -1):
+                    self.direction_list.append(self.direction.random())
                 else:
-                    # decreased
-                    if self.extremum_type == "min":
-                        self.direction_list.append(self.direction())
-                        print("no direction change")
+                    if coinc_rate > self.prev_coinc_rate:
+                        # increased
+                        if self.extremum_type == "min":
+                            self.direction_list.append(self.direction.reverse())
+
+                        else:
+                            self.direction_list.append(self.direction())
+                            print("no direction change")
+
                     else:
-                        self.direction_list.append(self.direction.reverse())
+                        # decreased
+                        if self.extremum_type == "min":
+                            self.direction_list.append(self.direction())
+                            print("no direction change")
+                        else:
+                            self.direction_list.append(self.direction.reverse())
 
-            delta = self.change_rate * self.direction()
-            self.voltage = self.voltage + delta
-            print("########################### VOLTAGE: ", round(self.voltage, 3))
-            self.vsource.setVoltage(self.channel, round(self.voltage, 3))
-            self.prev_coinc_rate = coinc_rate
+                delta = self.change_rate * self.direction()
+                self.old_voltage = self.voltage
+                self.voltage = self.voltage + delta
+                print("## VOLTAGE: ", round(self.voltage, 3))
+                self.vsource.setVoltage(self.channel, round(self.voltage, 3))
+                self.prev_coinc_rate = coinc_rate
 
-            # when to stop the minimization?
-            if len(self.direction_list) > 20:
-                imbalance = self.direction_list[-20:]
-                # stop if last 20 direction changes seem to be random
-                print("imbalance list: ", imbalance)
-                print("sum of imbalance list: ", sum(imbalance))
-                if abs(sum(imbalance)) < 6:
+                # print(
+                #     "list: ",
+                #     self.direction_list,
+                #     "sum: ",
+                #     abs(sum(self.direction_list)),
+                # )
+
+                if self.fine_grain_mode and len(self.direction_list) > 6:
+                    imbalance = self.direction_list[-6:]
+                    if abs(sum(imbalance)) <= 3:
+                        self.fine_grain_iteration += 1
+                        print(
+                            "FINE GRAIN MODE, ITERATION: ",
+                            self.fine_grain_iteration,
+                        )
+                        self.change_rate = 0.5 * self.change_rate
+                        # integrate twice as long
+                        self.event_list[1].int_time = self.event_list[1].int_time * 4
+                        self.fine_grain_status = "activated"
+                        last_direction = self.direction_list[-1]
+                        self.direction_array.append(self.direction_list)
+                        self.direction_list = [last_direction]
+                        self.data_color = self.data_color_list[
+                            self.fine_grain_iteration - 1
+                        ]
+
+                # stop minimization after 2nd fine grain iteration
+                if len(self.direction_list) > 4 and self.fine_grain_iteration >= 2:
+                    # imbalance = self.direction_list[-4:]
+                    # # stop if last 20 direction changes seem to be random
+
+                    # self.direction_array.append(self.direction_list)
+                    # print("imbalance list: ", imbalance)
+                    # print("sum of imbalance list: ", sum(imbalance))
                     self.final_state = {
                         "state": "finished",
                         "name": self.__class__.__name__,
                         "results": {
                             "counts_list": self.counts_list,
                             "times_list": self.times_list,
+                            "direction_array": self.direction_array,
                         },
                     }
+                    if self.save:
+                        self.do_save()
                     return self.final_state
-
+                print()
+                print()
+                return {
+                    "state": "working",
+                    "name": self.__class__.__name__,
+                    "results": {
+                        "voltage": self.old_voltage,  # the voltage that was chosen previously and matches the counts from this round. Not the voltage that was chosen this round
+                        "coinc_rate": coinc_rate,
+                        "color": self.data_color,
+                    },
+                }
         return {"state": "working", "name": self.__class__.__name__}
 
     def __str__(self):
@@ -572,12 +652,20 @@ class ConcurrentAction(Action):
 class GraphUpdate(Action):
     def __init__(self, axis):
         self.axis = axis
+
         self.data = None
         self.pass_state = False
         self.x_data = []
         self.y_data = []
         self.axis.clear()
+        self.x_scatter = []
+        self.y_scatter = []
+
         self.plot = self.axis.plot(self.x_data, self.y_data)
+
+        self.scatters = []
+        self.init = False
+        self.color = None
 
     def results_dive(self, dic, key):
         if dic is None:
@@ -592,15 +680,26 @@ class GraphUpdate(Action):
             return dic.get(key)
 
     def evaluate(self, current_time, counts, **kwargs):
+        if self.init is False:
+            self.axis.set_yscale("log")
+            self.axis.grid()
+            self.init = True
+
         self.data = kwargs
-        off_state = {"state": "not_graphing", "name": self.__class__.__name__}
+        # off_state = {"state": "not_graphing", "name": self.__class__.__name__}
 
         graph_data = self.data.get("graph_data")
         # print("results: ", self.results_dive(graph_data, "delta_time"))
+        # print(graph_data)
 
         delta_time = self.results_dive(graph_data, "delta_time")
         counts = self.results_dive(graph_data, "counts")
         voltage = self.results_dive(graph_data, "voltage")
+
+        color = self.results_dive(graph_data, "color")
+        coinc_rate = self.results_dive(graph_data, "coinc_rate")
+        # if coinc_rate is not None:
+        #     print(coinc_rate)
 
         if (counts is not None) and (delta_time is not None) and (voltage is not None):
             self.x_data.append(voltage)
@@ -610,11 +709,38 @@ class GraphUpdate(Action):
             self.axis.autoscale_view(True, True, True)
             # self.canvas.draw()
 
+        if (voltage is not None) and (coinc_rate is not None) and (color is not None):
+            if self.color != color:
+                # new color, new line
+                self.scatter = self.make_scatter(color)
+                self.x_scatter = []
+                self.y_scatter = []
+                self.color = color
+
+            self.x_scatter.append(voltage)
+            self.y_scatter.append(coinc_rate)
+            self.scatter[0].set_data(self.x_scatter, self.y_scatter)
+            self.axis.relim()
+            self.axis.autoscale_view(True, True, True)
+
         return {"state": "graphing", "name": self.__class__.__name__}
 
         # if self.data.get("graph_data") is not None:
         #     self.axis[0].set_xdata(self.data["graph_data"]["x_data"])
         #     self.axis[0].set_ydata(self.data["graph_data"]["y_data"])
+
+    def make_scatter(self, color):
+        scatter = self.axis.plot(
+            self.x_scatter,
+            self.y_scatter,
+            color=color,
+            ls="None",
+            marker="o",
+            markersize=2.5,
+            alpha=0.35,
+        )
+        self.scatters.append(scatter)
+        return scatter
 
 
 class Direction:
