@@ -38,7 +38,6 @@ class Action:
             self.results.append(response)
             self.event_list.pop(0)
             if len(self.event_list) == 0:
-                # print("finished event action: ", self.__class__.__name__)
                 self.pass_state = True  # deactivates this function in this object
                 self.final_state = {
                     "state": "finished",
@@ -50,7 +49,6 @@ class Action:
                 return self.final_state
             # only if the previous is finished do you recursively call evaluate
             self.evaluate(current_time, counts)
-
         return {"state": "waiting", "results": response}
 
         # how do I bubble up the results from the scan? In each evaluate?
@@ -146,26 +144,13 @@ class Integrate(Action):
         self.int_time = int_time
         self.counts = 0
 
-        # self.event_list = []
-        # self.init_time = -1
-        # self.results = []
-        # self.pass_state = False
-        # self.save_name = "output_file.json"
-        # self.save = False
-
     def evaluate(self, current_time, counts, **kwargs):
         if self.init_time == -1:
             self.init_time = time.time()
-            # started
-            # DON'T Use these counts if initializing
             return {"state": "integrating"}
-
         self.counts = self.counts + counts  # add counts
 
         if (current_time - self.init_time) > self.int_time:
-            # finish up
-            # print("####### ending integrate")
-
             self.delta_time = current_time - self.init_time
             self.final_state = {
                 "state": "finished",
@@ -173,7 +158,6 @@ class Integrate(Action):
                 "counts": self.counts,
                 "delta_time": self.delta_time,
             }
-            # print("integrate: ", self.final_state)
             return self.final_state
         return {"state": "integrating"}
 
@@ -553,9 +537,11 @@ class Extremum(Action):
                 #     abs(sum(self.direction_list)),
                 # )
 
-                if self.fine_grain_mode and len(self.direction_list) > 6:
-                    imbalance = self.direction_list[-6:]
-                    if abs(sum(imbalance)) <= 3:
+                if self.fine_grain_mode and len(self.direction_list) > 8:
+                    imbalance = self.direction_list[-8:]
+                    if (
+                        abs(sum(imbalance)) <= 3 and self.fine_grain_iteration <= 3
+                    ):  # no beyond 3
                         self.fine_grain_iteration += 1
                         print(
                             "FINE GRAIN MODE, ITERATION: ",
@@ -573,7 +559,7 @@ class Extremum(Action):
                         ]
 
                 # stop minimization after 2nd fine grain iteration
-                if len(self.direction_list) > 4 and self.fine_grain_iteration >= 2:
+                if len(self.direction_list) > 7 and self.fine_grain_iteration == 3:
                     # imbalance = self.direction_list[-4:]
                     # # stop if last 20 direction changes seem to be random
 

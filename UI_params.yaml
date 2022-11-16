@@ -55,7 +55,7 @@ visibility:
 
   int_fast:
     start_voltage: 0 #nan
-    end_voltage: 3.5 #nan
+    end_voltage: 3.1 #nan
     voltage_channel: 2
     inter_wait_time: .3
     steps: 50 #nan

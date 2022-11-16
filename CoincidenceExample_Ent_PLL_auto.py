@@ -387,6 +387,11 @@ class CoincidenceExample(QMainWindow):
             self.box = self.correlationAxis.axvspan(
                 xmin=80 * 1e-3,
                 xmax=160 * 1e-3,
+                alpha=0.1,
+            )
+            self.box = self.correlationAxis.axvspan(
+                xmin=85 * 1e-3,
+                xmax=155 * 1e-3,
                 alpha=0.2,
             )
             self.coinc_x = []
@@ -1207,12 +1212,12 @@ class CoincidenceExample(QMainWindow):
         minimum_and_maximum = DistributeData("coarse_scan")
 
         minimum = Extremum(
-            "min", 2, 1, 0.02, self.VSource, 0, "coarse_scan", fine_grain_mode=True
+            "min", 1, 1, 0.05, self.VSource, 0, "coarse_scan", fine_grain_mode=True
         )
         minimum.enable_save(save_name="minimum_data.json")
         minimum_and_maximum.add_action(minimum)
         maximum = Extremum(
-            "max", 1, 4, 0.2, self.VSource, 0, "coarse_scan", fine_grain_mode=True
+            "max", 0.25, 4, 0.2, self.VSource, 0, "coarse_scan", fine_grain_mode=True
         )
         maximum.enable_save(save_name="maximum_data.json")
         minimum_and_maximum.add_action(maximum)
