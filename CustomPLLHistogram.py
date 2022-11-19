@@ -173,8 +173,14 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
 
         this = np.ones(5) * 4.9345
         if init:
-            print("type: ", tags.dtype)
-            # print("extra info: ", tags[0].shape)
+            print(
+                "Init PLL with clock channel ",
+                clock_channel,
+                " , data1 channel: ",
+                data_channel_1,
+                " , and data2 channel ",
+                data_channel_2,
+            )
             clock_idx = 0
             clock_portion = np.zeros(1000, dtype=np.uint64)
 
