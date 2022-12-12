@@ -48,7 +48,7 @@ class Action:
                     self.do_save()
                 return self.final_state
             # only if the previous is finished do you recursively call evaluate
-            self.evaluate(current_time, counts)
+            return self.evaluate(current_time, counts)
         return {"state": "waiting", "results": response}
 
         # how do I bubble up the results from the scan? In each evaluate?
