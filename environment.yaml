@@ -1,4 +1,4 @@
-name: peacoq
+name: entanglement
 channels:
   - conda-forge
 dependencies:
