@@ -1,5 +1,9 @@
 # High Rate Entanglement PySide2 Software
 
+This software is used measure coincidences and controll the high rate entanglement expirement based on a fast mode locked laser. 
+
+![entanglement_software_image](entanglement_software_img.png)
+
 1. Install the [swabian timetagger software](https://www.swabianinstruments.com/time-tagger/downloads/)
     - On redhat, navitage to the location of the file and install with:
     ```
@@ -52,7 +56,7 @@ cd <entanglement-path>
 
 run the program with:
 ```shell
-python entanglement_analysis.py
+python entanglement_controll.py
 ```
 
 Hit the "Load File Params" button first, then the "Clock Referenced Mode" button to activate the PLL. 
