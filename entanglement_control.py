@@ -11,7 +11,7 @@ from matplotlib.figure import Figure
 
 # to generate new UI file: pyside2-uic CoincidenceExampleWindow_XXX.ui > CoincidenceExampleWindow_mx.py
 # Please use the QtDesigner to edit the ui interface file
-from entanglement_controll_window import EntanglementControllWindow
+from entanglement_control_window import EntanglementControlWindow
 
 # from CustomPLLHistogram import CustomPLLHistogram
 from CustomPLLHistogram import CustomPLLHistogram
@@ -84,7 +84,7 @@ class CoincidenceExample(QMainWindow):
 
         # Create the UI from the designer file and connect its action buttons
         super(CoincidenceExample, self).__init__()
-        self.ui = EntanglementControllWindow()
+        self.ui = EntanglementControlWindow()
         self.ui.setupUi(self)
         self.ui.startButton.clicked.connect(self.load_file_params)
         self.ui.clockRefMode.clicked.connect(self.clockRefMode)

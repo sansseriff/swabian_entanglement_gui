@@ -11,7 +11,7 @@
 from PySide2 import QtCore, QtGui, QtWidgets
 
 
-class EntanglementControllWindow(object):
+class EntanglementControlWindow(object):
     def setupUi(self, CoincidenceExample):
         CoincidenceExample.setObjectName("Entanglement Analyser V3.1")
         CoincidenceExample.resize(859, 811)
