@@ -48,7 +48,9 @@ class Action:
                     self.do_save()
                 return self.final_state
             # only if the previous is finished do you recursively call evaluate
-            return self.evaluate(current_time, counts)
+            res = self.evaluate(current_time, counts)
+            print("EXTRA EVALUATE: ", res)
+            return res
         return {"state": "waiting", "results": response}
 
         # how do I bubble up the results from the scan? In each evaluate?
@@ -617,6 +619,8 @@ class ConcurrentAction(Action):
             self.intermediate_result = object.evaluate(
                 current_time, counts, graph_data=self.intermediate_result
             )
+
+            print("inter result: ", self.intermediate_result)
 
             if self.intermediate_result.get("state") == "finished":
                 self.pass_state = True

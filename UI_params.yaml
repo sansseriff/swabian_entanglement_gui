@@ -11,7 +11,7 @@ Channels:
 
   ChB:
     channel: -14
-    trigger: -.019
+    trigger: -.041
     delay: 4120 # -5735 # was -35954 before 5/5/2022
     # -26050 on 5/26/2022
     # 54,39: -39580
