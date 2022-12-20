@@ -60,19 +60,7 @@ import datetime
 
 from SocketClient import SocketClient
 from awgClient import AWGClient
-from measurement_managment import (
-    Action,
-    ConcurrentAction,
-    Extremum,
-    SetVoltage,
-    Wait,
-    Integrate,
-    Scan,
-    StepScan,
-    GraphUpdate,
-    DependentAction,
-    DistributeData,
-)
+from measurements.visibility_scan_minimize import VisibilityScanMinimize
 
 
 class CoincidenceExample(QMainWindow):
@@ -166,9 +154,9 @@ class CoincidenceExample(QMainWindow):
         self.tagger.setEventDivider(18, self.clock_divider)
 
         self.VSource = teledyneT3PS("10.7.0.147", port=1026)
-        self.VSource.set_max_voltage(5.0)
-        # self.VSource = teledyneT3PS("10.7.0.147", port=1026, max_voltage=2)
         self.VSource.connect()
+        self.VSource.set_max_voltage(5.0)
+        self.VSource.setCurrent(2, 0.20)
         V_init = self.VSource.getVoltage(2)
         print("VSource Initialized With Voltage: ", V_init)
         self.ui.intf_voltage.setProperty("value", V_init)
@@ -1179,73 +1167,13 @@ class CoincidenceExample(QMainWindow):
 
         return 0
 
-    def entanglement_measurment(self):
-        with open("./UI_params.yaml", "r", encoding="utf8") as stream:
-            try:
-                params = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print(exc)
-        params = params["visibility"]
+    def entanglement_measurement(self):
 
-        """add a series of actions that will be done during the program's
-        main event loop. (this is a way of avoiding a series of messy
-        if statments that determine what to do at what time
-        in the event loop) """
-
-        # +-Concurrent----------+
-        # | +-Action-+ +------+ |
-        # | |+------+| |      | |
-        # | || Scan || |      | |
-        # | ||      || |      | |
-        # | |+------+| |graph | |
-        # | |+------+| |      | |
-        # | || Mini || |      | |
-        # | || Maxi || |      | |
-        # | |+------+| |      | |
-        # | +--------+ +------+ |
-        # +---------------------+
-
-        tracker = Action()
-        self.event_loop_action = tracker
-        scan_and_find_extremes = DependentAction("coarse_scan")
-        scan_and_find_extremes.add_action(Scan(params["int_fast"], self.VSource))
-        minimum_and_maximum = DistributeData("coarse_scan")
-
-        minimum = Extremum(
-            "min", 1, 1, 0.05, self.VSource, 0, "coarse_scan", fine_grain_mode=True
-        )
-        minimum.enable_save(save_name="minimum_data.json")
-        minimum_and_maximum.add_action(minimum)
-        maximum = Extremum(
-            "max", 0.25, 4, 0.2, self.VSource, 0, "coarse_scan", fine_grain_mode=True
-        )
-        maximum.enable_save(save_name="maximum_data.json")
-        minimum_and_maximum.add_action(maximum)
-
-        scan_and_find_extremes.add_action(minimum_and_maximum)
-
-        # how do you tell Minimize where to find the curve with the max and the min values? It doesn't exist yet...
-        # if these are not finihed, I want the result to bubble up to the the graph object.
-        # if they are finished, I want them to export data to either the next object or the graph object.
-
-        # these two are to get the interferometer stable before the coarse scan
-        tracker.add_action(SetVoltage(0, self.VSource, 2))
-        tracker.add_action(Wait(10))
-
-        tracker.add_action(
-            ConcurrentAction(scan_and_find_extremes, GraphUpdate(self.clockAxis))
-        )
-        tracker.enable_save(save_name=params["save_name"])
+        self.event_loop_action = VisibilityScanMinimize(self.VSource, self.clockAxis)
 
     def initVisibility(self):
         self.inputValid = False
-        # I'm using a thread because I get a seg fault if I let the main
-        # ui update stall for too long.
-        # entanglement_measurment
-        self.entanglement_measurment()
-        # self.input_handler = threading.Thread(target=self.entanglement_measurment)
-        # # self.input_handler = threading.Thread(target=self.handleScanInput)
-        # self.input_handler.start()
+        self.entanglement_measurement()
 
     def collectCoincidences(self, count):
         ######### a way to do a coincidence measurment inside the program's main event loop.
@@ -1462,11 +1390,7 @@ class CoincidenceExample(QMainWindow):
                     # multiplied by 10 just for better visibility in the UI
                     self.plt_clock_corr_coinc[0].set_ydata(currentData_coinc * 10)
                     if self.BlockIndex == 0:
-                        # if not self.input_mode:
-                        #     print(
-                        #         "Coincidences: ",
-                        #         numpy.sum(self.persistentData_coinc),
-                        #     )
+
                         coincidences = numpy.sum(self.persistentData_coinc)
                         self.coinc_idx += 1
                         self.coinc_x.append(self.coinc_idx)

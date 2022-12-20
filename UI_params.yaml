@@ -35,32 +35,6 @@ Histogram:
   bins: 1000
   bin_width: 1 # ps
 
-visibility:
-  save_name: "./config_2/testing_new_architecture.json"
-  int_1:
-    start_voltage: 2.5
-    end_voltage: 2.7
-    voltage_channel: 2
-    inter_wait_time: 1
-    steps: 81
-    time_per_point: 5
-
-  int_2:
-    start_voltage: 1.4
-    end_voltage: 1.8
-    voltage_channel: 2
-    inter_wait_time: .2
-    steps: 35
-    time_per_point: 1
-
-  int_fast:
-    start_voltage: 0 #nan
-    end_voltage: 3.1 #nan
-    voltage_channel: 2
-    inter_wait_time: .3
-    steps: 50 #nan
-    time_per_point: 1
-
   wait: 10
 
   min_voltage: 2.60

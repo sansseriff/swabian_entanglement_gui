@@ -5,11 +5,14 @@ import json
 import random
 
 """
+The action framework is used to build and specify measurements in a composable and modular fashion so that they
+are carried out step by step in the programs main even loop. 
+
+
 Actions can contain other actions, 
 or actions can be customized to do specific things
 
-
-!! The issue with using this method is that each action needs a proper return value from .evaluate(). If you forget to put it there, you get errors that are hard to track down...
+Andrew Mueller 2022
 """
 
 
@@ -21,6 +24,7 @@ class Action:
         self.pass_state = False
         self.save_name = "output_file.json"
         self.save = False
+        self.environment = {}  # used for accessing persistent data
 
     def add_action(self, object):
         self.event_list.append(object)
@@ -30,28 +34,28 @@ class Action:
             return {"state": "passed"}
             """remember how I decided an object should be allowed 
             to deactivate itself, but it should not delete itself"""
-        response = self.event_list[0].evaluate(current_time, counts)
-        if (
-            response["state"] == "finished"
-        ):  # might want to change these to response.get()
-            response.pop("state", None)
-            self.results.append(response)
-            self.event_list.pop(0)
-            if len(self.event_list) == 0:
-                self.pass_state = True  # deactivates this function in this object
-                self.final_state = {
-                    "state": "finished",
-                    "name": self.__class__.__name__,
-                    "results": self.flatten(self.results),
-                }
-                if self.save:
-                    self.do_save()
-                return self.final_state
-            # only if the previous is finished do you recursively call evaluate
-            res = self.evaluate(current_time, counts)
-            print("EXTRA EVALUATE: ", res)
-            return res
-        return {"state": "waiting", "results": response}
+        responses = []
+        while True:
+            response = self.event_list[0].evaluate(current_time, counts)
+            responses.append(response)
+
+            if response["state"] != "finished":
+                break
+            else:
+                response.pop("state", None)
+                self.results.append(response)
+                self.event_list.pop(0)
+                if len(self.event_list) == 0:
+                    self.pass_state = True  # deactivates this function in this object
+                    self.final_state = {
+                        "state": "finished",
+                        "name": self.__class__.__name__,
+                        "results": self.flatten(self.results),
+                    }
+                    if self.save:
+                        self.do_save()
+                    return self.final_state
+        return {"state": "waiting", "results": responses}
 
         # how do I bubble up the results from the scan? In each evaluate?
 
@@ -124,9 +128,7 @@ class Wait(Action):
     def evaluate(self, current_time, counts, **kwargs):
         if self.init_time == -1:
             self.init_time = time.time()
-            # print("####### starting wait")
         if (current_time - self.init_time) > self.wait_time:
-            # print("####### finished wait")
             self.final_state = {
                 "state": "finished",
                 "name": self.__class__.__name__,
@@ -444,7 +446,7 @@ class Extremum(Action):
         self.add_action(Wait(wait_time))
         self.add_action(Integrate(integration_time))
         self.vsource = vsource
-        # could be overriden by scan data supplied with evaluate
+        # could be overridden by scan data supplied with evaluate
         self.voltage = init_voltage
         self.fine_grain_status = "deactivated"
         self.direction = Direction()
@@ -488,10 +490,6 @@ class Extremum(Action):
         response = self.event_list[self.cycle].evaluate(current_time, counts)
 
         if response.get("state") == "finished":
-            # DON'T CYCLE UNLESS ITS A FINISHED RESPONSE!
-            # I need to think of a more foolproof way of doing this
-
-            # What is a good way of ensuring that an action is never skipped in successive evaluations?
             if self.cycle == 1:  # alternate bewteen Wait and integrate
                 self.cycle = 0
             else:
@@ -531,13 +529,6 @@ class Extremum(Action):
                 print("## VOLTAGE: ", round(self.voltage, 3))
                 self.vsource.setVoltage(self.channel, round(self.voltage, 3))
                 self.prev_coinc_rate = coinc_rate
-
-                # print(
-                #     "list: ",
-                #     self.direction_list,
-                #     "sum: ",
-                #     abs(sum(self.direction_list)),
-                # )
 
                 if self.fine_grain_mode and len(self.direction_list) > 8:
                     imbalance = self.direction_list[-8:]
@@ -619,9 +610,6 @@ class ConcurrentAction(Action):
             self.intermediate_result = object.evaluate(
                 current_time, counts, graph_data=self.intermediate_result
             )
-
-            print("inter result: ", self.intermediate_result)
-
             if self.intermediate_result.get("state") == "finished":
                 self.pass_state = True
                 self.final_state = {
@@ -631,12 +619,6 @@ class ConcurrentAction(Action):
                 }
                 return self.final_state
         return {"state": "working", "name": self.__class__.__name__}
-
-
-# class PlottableObject():
-#     def __init__():
-
-# every time we get enough information for a new datapoint... Is every time we finihes one iteration of... the scan object.
 
 
 class GraphUpdate(Action):
@@ -661,13 +643,29 @@ class GraphUpdate(Action):
         if dic is None:
             return dic
 
-        if dic.get("results") is not None:
+        if isinstance(dic, list):
+            # print("this is the dic: ", dic)
+            results = []
+            for item in dic:
+                results.append(self.results_dive(item, key))
+            # assert len(results) == 1
+            # print("this is the results ", results)
+            # print(results)
+            for result in results:
+                if result is not None:
+                    return result
+        if isinstance(dic, dict):
+            if dic.get("results") is not None:
 
-            return self.results_dive(dic.get("results"), key)
+                return self.results_dive(dic.get("results"), key)
+            else:
+                # print(dic.get(key))
+                # print(dic)
+                return dic.get(key)
         else:
-            # print(dic.get(key))
-            # print(dic)
-            return dic.get(key)
+            return None
+            # print("This is the type: ", type(dic))
+            # raise TypeError("Type other than list or dict found in results")
 
     def evaluate(self, current_time, counts, **kwargs):
         if self.init is False:
@@ -679,7 +677,7 @@ class GraphUpdate(Action):
         # off_state = {"state": "not_graphing", "name": self.__class__.__name__}
 
         graph_data = self.data.get("graph_data")
-        # print("results: ", self.results_dive(graph_data, "delta_time"))
+        # print("results: ", graph_data)
         # print(graph_data)
 
         delta_time = self.results_dive(graph_data, "delta_time")
