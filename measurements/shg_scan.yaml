@@ -1,0 +1,6 @@
+
+
+shg_scan:
+  start_power: 1.2
+  end_power: 3.5
+  steps: 20

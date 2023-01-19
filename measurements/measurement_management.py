@@ -3,6 +3,7 @@ import time
 import numpy as np
 import json
 import random
+from dataclasses import dataclass
 
 """
 The action framework is used to build and specify measurements in a composable and modular fashion so that they
@@ -36,7 +37,7 @@ class Action:
             to deactivate itself, but it should not delete itself"""
         responses = []
         while True:
-            response = self.event_list[0].evaluate(current_time, counts)
+            response = self.event_list[0].evaluate(current_time, counts, **kwargs)
             responses.append(response)
 
             if response["state"] != "finished":
@@ -76,6 +77,28 @@ class Action:
 
     def pretty_print(self, data):
         print(json.dumps(data, sort_keys=True, indent=4))
+
+
+@dataclass
+class Store:
+    __allowed = ("voltage", "counts", "power")
+
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            assert k in self.__class__.__allowed
+            setattr(self, k, v)
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def export(self):
+        return self.__dict__
+
+    def set_val(self, value):
+        self.voltage = value
+
+    def get_val(self):
+        return self.voltage
 
 
 class SetVoltage(Action):
@@ -199,6 +222,10 @@ class ValueIntegrate(Action):
             }
             return self.final_state
         return {"state": "integrating"}
+
+    def reset(self):
+        self.init_time = -1
+        self.counts = 0
 
     def __str__(self):
         return "ValueIntegrate Action Object"
@@ -432,22 +459,33 @@ class Extremum(Action):
         init_voltage,
         data_name="prev_data",
         fine_grain_mode=False,
+        low_res_steps=8,
+        iteration_increase=False,
+        steps=7,
+        int_type="regular",
     ):
         super().__init__()
         self.extremum_type = extremum_type
-        # print("is it min?: ", extremum_type == "min")
-        # print("is it max?: ", extremum_type == "max")
         if (self.extremum_type != "min") and (self.extremum_type != "max"):
             raise UnspecifiedExtremum(
                 f"{str(self.extremum_type)} is not 'max' or 'min'"
             )
 
         self.change_rate = change_rate
+        self.original_rate = change_rate
+        self.low_res_steps = low_res_steps
+        self.int_type = int_type
+        self.steps = steps
+        self.iteration_increase = iteration_increase
         self.add_action(Wait(wait_time))
-        self.add_action(Integrate(integration_time))
+
+        if self.int_type == "regular":
+            self.add_action(Integrate(integration_time))
+
+        self.org_integration_time = integration_time
         self.vsource = vsource
         # could be overridden by scan data supplied with evaluate
-        self.voltage = init_voltage
+        self.voltage = init_voltage  # can be either a number or a Store
         self.fine_grain_status = "deactivated"
         self.direction = Direction()
         self.channel = 2
@@ -459,6 +497,7 @@ class Extremum(Action):
 
         self.counts_list = []
         self.times_list = []
+        self.voltage_list = []
         self.data_name = data_name
         self.cycle = 0
         self.fine_grain_iteration = 0
@@ -469,8 +508,52 @@ class Extremum(Action):
         self.data_color_list = ["#eb2121", "#db21b6", "#9a21db", "#5257d9"]
         self.data_color = "#fcc244"
         self.old_voltage = None
+        self.update_rate()
+        if self.int_type == "regular":
+            self.update_time()
+
+    def update_rate(self):
+        self.change_rate = self.original_rate * (0.5**self.fine_grain_iteration)
+
+    def update_time(self):
+        self.event_list[1].int_time = self.org_integration_time * (
+            4**self.fine_grain_iteration
+        )
+
+    def get_voltage(self):
+        if (type(self.voltage) is int) or (type(self.voltage) is float):
+            return self.voltage
+        if type(self.voltage) is Store:
+            assert (type(self.voltage.get_val()) is int) or (
+                type(self.voltage.get_val()) is float
+            )
+            return self.voltage.get_val()
+
+    def set_voltage(self, value):
+        if (type(self.voltage) is int) or (type(self.voltage) is float):
+            self.voltage = value
+        if type(self.voltage) is Store:
+            self.voltage.set_val(value)
+
+    def update_start_iteration(self, iteration):
+        self.fine_grain_iteration = iteration
+        if self.int_type == "regular":
+            self.update_rate()
+            self.update_time()
+        if self.int_type == "custom":
+            self.update_rate()
+
+    def init_custom_integration(
+        self,
+    ):  # use this after add_action when using a custom integration method.
+        self.int_name = self.event_list[1].__class__.__name__
 
     def evaluate(self, current_time, counts, **kwargs):
+        if len(self.event_list) <= 1:
+            raise Exception(
+                "In custom integrate mode, add_action must be used to add an integration action"
+            )
+
         if self.init is False:
             if kwargs.get(self.data_name) is not None:
                 print("data loaded with name: ", self.data_name)
@@ -481,10 +564,11 @@ class Extremum(Action):
 
                 voltage_min = kwargs[self.data_name]["results"]["voltage"][idx_extreme]
                 print("voltage min: ", voltage_min)
-                self.voltage = voltage_min  # apply minimum from graph
+                # self.voltage = voltage_min  # apply minimum from graph
+                self.update_voltage(voltage_min)
 
-            print("###### VOLTAGE: ", round(self.voltage, 3))
-            self.vsource.setVoltage(self.channel, round(self.voltage, 3))
+            print("###### VOLTAGE: ", round(self.get_voltage(), 3))
+            self.vsource.setVoltage(self.channel, round(self.get_voltage(), 3))
             self.init = True
 
         response = self.event_list[self.cycle].evaluate(current_time, counts)
@@ -495,9 +579,12 @@ class Extremum(Action):
             else:
                 self.cycle = 1
 
-            if response.get("name") == "Integrate":
+            if response.get("name") == self.int_name:
                 self.event_list[1].reset()  # reset the integrate
                 self.counts_list.append(response["counts"])
+                print("counts: ", response["counts"])
+                print("times: ", response["delta_time"])
+                print()
                 self.times_list.append(response["delta_time"])
                 # print("integrate response: ", response)
                 coinc_rate = response["counts"] / response["delta_time"]
@@ -524,25 +611,31 @@ class Extremum(Action):
                             self.direction_list.append(self.direction.reverse())
 
                 delta = self.change_rate * self.direction()
-                self.old_voltage = self.voltage
-                self.voltage = self.voltage + delta
-                print("## VOLTAGE: ", round(self.voltage, 3))
-                self.vsource.setVoltage(self.channel, round(self.voltage, 3))
+                self.old_voltage = self.get_voltage()
+                self.set_voltage(self.get_voltage() + delta)
+                print("## VOLTAGE: ", round(self.get_voltage(), 3))
+                self.vsource.setVoltage(self.channel, round(self.get_voltage(), 3))
+                self.voltage_list.append(self.old_voltage)
                 self.prev_coinc_rate = coinc_rate
 
-                if self.fine_grain_mode and len(self.direction_list) > 8:
+                if (
+                    self.fine_grain_mode
+                    and len(self.direction_list) > self.low_res_steps
+                ):
                     imbalance = self.direction_list[-8:]
                     if (
-                        abs(sum(imbalance)) <= 3 and self.fine_grain_iteration <= 3
+                        abs(sum(imbalance)) <= 3
+                        and self.fine_grain_iteration <= 3
+                        and self.iteration_increase
                     ):  # no beyond 3
                         self.fine_grain_iteration += 1
                         print(
                             "FINE GRAIN MODE, ITERATION: ",
                             self.fine_grain_iteration,
                         )
-                        self.change_rate = 0.5 * self.change_rate
-                        # integrate twice as long
-                        self.event_list[1].int_time = self.event_list[1].int_time * 4
+
+                        self.update_rate_time()
+
                         self.fine_grain_status = "activated"
                         last_direction = self.direction_list[-1]
                         self.direction_array.append(self.direction_list)
@@ -552,10 +645,11 @@ class Extremum(Action):
                         ]
 
                 # stop minimization after 2nd fine grain iteration
-                if len(self.direction_list) > 7 and self.fine_grain_iteration == 3:
+                if (
+                    len(self.direction_list) > self.steps
+                    and self.fine_grain_iteration == 3
+                ):
                     # imbalance = self.direction_list[-4:]
-                    # # stop if last 20 direction changes seem to be random
-
                     # self.direction_array.append(self.direction_list)
                     # print("imbalance list: ", imbalance)
                     # print("sum of imbalance list: ", sum(imbalance))
@@ -566,6 +660,7 @@ class Extremum(Action):
                             "counts_list": self.counts_list,
                             "times_list": self.times_list,
                             "direction_array": self.direction_array,
+                            "voltage_list": self.voltage_list,
                         },
                     }
                     if self.save:
@@ -753,22 +848,41 @@ class Direction:
         return self.direction
 
 
+class Thing:
+    def __init__(self, thing):
+        self.thing = thing
+
+
 if __name__ == "__main__":
     # concurrent = ConcurrentAction(Direction(), ValueIntegrate(30))
     # concurrent.whee()
-    def myfunction(option_1, option_2, **kwargs):
-        print("option_1: ", option_1)
-        print("option_2: ", option_2)
-        print(type(kwargs))
-        print(len(kwargs))
-        print(kwargs)
-        # for thing in kwargs:
-        #     print("   thing: ", thing)
-        # for item in kwargs.keys():
-        #     print("key: ", item, "thing: ", kwargs[item])
+    # def myfunction(option_1, option_2, **kwargs):
+    #     print("option_1: ", option_1)
+    #     print("option_2: ", option_2)
+    #     print(type(kwargs))
+    #     print(len(kwargs))
+    #     print(kwargs)
+    #     # for thing in kwargs:
+    #     #     print("   thing: ", thing)
+    #     # for item in kwargs.keys():
+    #     #     print("key: ", item, "thing: ", kwargs[item])
 
-    mything = "how"
-    # print(concurrent)
-    # print(concurrent.__class__())
+    # mything = "how"
+    # # print(concurrent)
+    # # print(concurrent.__class__())
 
-    myfunction(3, 56, **{mything: "what"})
+    # myfunction(3, 56, **{mything: "what"})
+
+    # th = Thing(3)
+    # th = 5
+
+    # if type(th) is Thing:
+    #     print("thingg")
+    # elif type(th) is int:
+    #     print("inttt")
+
+    store = Store(voltage=3)
+    print(store)
+    print(store.voltage)
+    store.voltage = 5
+    print(store.export())
