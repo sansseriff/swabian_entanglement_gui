@@ -1,7 +1,7 @@
 # PySide2 for the UI
 from multiprocessing import Event
 from pty import slave_open
-from PySide2.QtWidgets import QMainWindow, QApplication, QFileDialog
+from PySide2.QtWidgets import QMainWindow, QApplication, QFileDialog, QInputDialog
 from PySide2.QtCore import QTimer
 from PySide2.QtGui import QPalette, QColor
 
@@ -61,6 +61,8 @@ import datetime
 from SocketClient import SocketClient
 from awgClient import AWGClient
 from measurements.visibility_scan_minimize import VisibilityScanMinimize
+from measurements.shg_scan import TextDialog, SHG_Scan
+from measurements.shg_scan_alt import TextDialog, SHG_Scan_Alt
 
 
 class CoincidenceExample(QMainWindow):
@@ -144,6 +146,8 @@ class CoincidenceExample(QMainWindow):
         self.scanRunning = False
         self.multiScan = False
         self.event_loop_action = None
+        self.user_message = [None, None]
+        self.td = TextDialog()
 
         # Use a timer to redraw the plots every 100ms
         self.draw()
@@ -156,6 +160,7 @@ class CoincidenceExample(QMainWindow):
         self.VSource = teledyneT3PS("10.7.0.147", port=1026)
         self.VSource.connect()
         self.VSource.set_max_voltage(5.0)
+        self.VSource.enableChannel(2)
         self.VSource.setCurrent(2, 0.20)
         V_init = self.VSource.getVoltage(2)
         print("VSource Initialized With Voltage: ", V_init)
@@ -184,6 +189,9 @@ class CoincidenceExample(QMainWindow):
         bin_index = self.counter.getIndex()
         # normalize 'clicks / bin' to 'kclicks / second'
         return 1e12 / bin_index[1] / 1e3
+
+    def show_dialog(self, message):
+        self.td.get_text(self, message)
 
     def updateMeasurements(self):
         """Create/Update all TimeTagger measurement objects"""
@@ -330,7 +338,7 @@ class CoincidenceExample(QMainWindow):
         self.coincAxis.clear()
 
         if self.ent:
-            clocks, pclocks, hist1, hist2, coinc = self.PLL.getData()
+            clocks, pclocks, hist1, hist2, coinc1, coinc2 = self.PLL.getData()
 
             try:
                 max = numpy.max(hist1)
@@ -339,7 +347,8 @@ class CoincidenceExample(QMainWindow):
             self.bins = numpy.arange(1, max)
             histogram1, bins = numpy.histogram(hist1, bins=self.bins)
             histogram2, bins = numpy.histogram(hist2, bins=self.bins)
-            histogram_coinc, bins = numpy.histogram(coinc, bins=self.bins)
+            histogram_coinc_1, bins = numpy.histogram(coinc1, bins=self.bins)
+            histogram_coinc_2, bins = numpy.histogram(coinc2, bins=self.bins)
 
             self.histBlock_ent1 = numpy.zeros(
                 (int(self.ui.IntTime.value() * 10), len(histogram1))
@@ -347,8 +356,12 @@ class CoincidenceExample(QMainWindow):
             self.histBlock_ent2 = numpy.zeros(
                 (int(self.ui.IntTime.value() * 10), len(histogram2))
             )
-            self.histBlock_coinc = numpy.zeros(
-                (int(self.ui.IntTime.value() * 10), len(histogram_coinc))
+            self.histBlock_coinc_1 = numpy.zeros(
+                (int(self.ui.IntTime.value() * 10), len(histogram_coinc_1))
+            )
+
+            self.histBlock_coinc_2 = numpy.zeros(
+                (int(self.ui.IntTime.value() * 10), len(histogram_coinc_2))
             )
 
             clocks_div = clocks[:: self.divider]
@@ -369,25 +382,25 @@ class CoincidenceExample(QMainWindow):
             self.plt_clock_corr_2 = self.correlationAxis.plot(
                 bins[:-1] * 1e-3, histogram2, color="#cc6a6a"
             )
-            self.plt_clock_corr_coinc = self.correlationAxis.plot(
-                bins[:-1] * 1e-3, histogram_coinc * 10, color="k"
+            self.plt_clock_corr_coinc_1 = self.correlationAxis.plot(
+                bins[:-1] * 1e-3, histogram_coinc_1 * 10, color="#232163", alpha=0.5
+            )
+
+            self.plt_clock_corr_coinc_2 = self.correlationAxis.plot(
+                bins[:-1] * 1e-3, histogram_coinc_2 * 10, color="#591919", alpha=0.5
+            )
+
+            self.box = self.correlationAxis.axvspan(
+                xmin=90 * 1e-3, xmax=158 * 1e-3, alpha=0.1, color="red"
             )
             self.box = self.correlationAxis.axvspan(
-                xmin=80 * 1e-3,
-                xmax=160 * 1e-3,
-                alpha=0.1,
-            )
-            self.box = self.correlationAxis.axvspan(
-                xmin=85 * 1e-3,
-                xmax=155 * 1e-3,
-                alpha=0.2,
+                xmin=80 * 1e-3, xmax=148 * 1e-3, alpha=0.1, color="blue"
             )
             self.coinc_x = []
             self.coinc_y = []
             self.coinc_line = self.coincAxis.plot(self.coinc_x, self.coinc_y, color="k")
             if self.ui.LogScaleCheck.isChecked():
                 self.correlationAxis.set_yscale("log")
-                # self.correlationAxis.set_ylim(.005,.04)
             else:
                 self.correlationAxis.set_yscale("linear")
 
@@ -487,6 +500,12 @@ class CoincidenceExample(QMainWindow):
     def clearClicked(self):
         """Handler for the clear action button"""
         self.correlation.clear()
+
+    def handle_user_input(self):
+        self.user_message[0], self.user_message[1] = QInputDialog().getText(
+            self, "Question", "Current SHG Power"
+        )
+        return self.user_message
 
     def saveTags(self):
         # depreciated
@@ -907,12 +926,14 @@ class CoincidenceExample(QMainWindow):
 
         persistentData_ent1 = numpy.sum(self.histBlock_ent1, axis=0)
         persistentData_ent2 = numpy.sum(self.histBlock_ent2, axis=0)
-        persistentData_coinc = numpy.sum(self.histBlock_coinc, axis=0)
+        persistentData_coinc_1 = numpy.sum(self.histBlock_coinc_1, axis=0)
+        persistentData_coinc_2 = numpy.sum(self.histBlock_coinc_2, axis=0)
 
         dic = {
             "channel_1": persistentData_ent1.tolist(),
             "channel_2": persistentData_ent2.tolist(),
-            "coinc": persistentData_coinc.tolist(),
+            "coinc_1": persistentData_coinc_1.tolist(),
+            "coinc_2": persistentData_coinc_2.tolist(),
         }
 
         with open("histogram_save.json", "w") as file:
@@ -1002,7 +1023,7 @@ class CoincidenceExample(QMainWindow):
 
     def load_file_params(self):
 
-        self.ent = False
+        # self.ent = False
         with open("./UI_params.yaml", "r", encoding="utf8") as stream:
             try:
                 ui_data = yaml.safe_load(stream)
@@ -1169,10 +1190,14 @@ class CoincidenceExample(QMainWindow):
 
     def entanglement_measurement(self):
 
-        self.event_loop_action = VisibilityScanMinimize(self.VSource, self.clockAxis)
+        # self.event_loop_action = VisibilityScanMinimize(self.VSource, self.clockAxis)
+        self.event_loop_action = SHG_Scan_Alt(self, self.VSource)
+
+        # self.event_loop_action = WaitUpdateWait(self)
 
     def initVisibility(self):
         self.inputValid = False
+
         self.entanglement_measurement()
 
     def collectCoincidences(self, count):
@@ -1305,7 +1330,7 @@ class CoincidenceExample(QMainWindow):
                 else:
                     self.correlationAxis.set_yscale("linear")
                 ##############
-                clocks, pclocks, hist1, hist2, coinc = self.PLL.getData()
+                clocks, pclocks, hist1, hist2, coinc1, coinc2 = self.PLL.getData()
                 clocks_div = clocks[:: self.divider]
                 pclocks_div = pclocks[:: self.divider]
                 x_clocks = numpy.linspace(0, 1, len(clocks_div))
@@ -1335,20 +1360,28 @@ class CoincidenceExample(QMainWindow):
                 clock_dirty = clock_dirty - final_offset  # typecast to float
                 clock_clean = clock_clean - final_offset  # typecast to float
                 self.plt_clock_dirty[0].set_data(x_clocks, clock_dirty)
-                # self.plt_clock_clean[0].set_xdata(x_clocks)
                 self.plt_clock_clean[0].set_data(x_clocks, clock_clean)
                 self.clockAxis.relim()
-                ##############
 
                 histogram1, bins = numpy.histogram(hist1, bins=self.bins)
                 histogram2, bins = numpy.histogram(hist2, bins=self.bins)
-                histogram_coinc, bins = numpy.histogram(coinc, bins=self.bins)
+                histogram_coinc_1, bins = numpy.histogram(coinc1, bins=self.bins)
+                histogram_coinc_2, bins = numpy.histogram(coinc2, bins=self.bins)
                 self.histBlock_ent1[self.BlockIndex] = histogram1
                 self.histBlock_ent2[self.BlockIndex] = histogram2
-                self.histBlock_coinc[self.BlockIndex] = histogram_coinc
+                self.histBlock_coinc_1[self.BlockIndex] = histogram_coinc_1
+                self.histBlock_coinc_2[self.BlockIndex] = histogram_coinc_2
 
                 if self.event_loop_action is not None:
-                    self.event_loop_action.evaluate(time.time(), len(coinc))
+                    self.event_loop_action.evaluate(
+                        time.time(),
+                        len(coinc1),
+                        main_window=self,
+                        coincidence_array_1=coinc1.tolist(),
+                        coincidence_array_2=coinc2.tolist(),
+                        hist_1=histogram1,
+                        hist_2=histogram2,
+                    )
 
             else:
                 index = self.correlation.getIndex()
@@ -1380,18 +1413,25 @@ class CoincidenceExample(QMainWindow):
 
                     self.persistentData_ent1 = numpy.sum(self.histBlock_ent1, axis=0)
                     self.persistentData_ent2 = numpy.sum(self.histBlock_ent2, axis=0)
-                    self.persistentData_coinc = numpy.sum(self.histBlock_coinc, axis=0)
+                    self.persistentData_coinc_1 = numpy.sum(
+                        self.histBlock_coinc_1, axis=0
+                    )
+                    self.persistentData_coinc_2 = numpy.sum(
+                        self.histBlock_coinc_2, axis=0
+                    )
 
                     currentData_ent1 = self.persistentData_ent1
                     currentData_ent2 = self.persistentData_ent2
-                    currentData_coinc = self.persistentData_coinc
+                    currentData_coinc_1 = self.persistentData_coinc_1
+                    currentData_coinc_2 = self.persistentData_coinc_2
                     self.plt_clock_corr_1[0].set_ydata(currentData_ent1)
                     self.plt_clock_corr_2[0].set_ydata(currentData_ent2)
                     # multiplied by 10 just for better visibility in the UI
-                    self.plt_clock_corr_coinc[0].set_ydata(currentData_coinc * 10)
+                    self.plt_clock_corr_coinc_1[0].set_ydata(currentData_coinc_1 * 10)
+                    self.plt_clock_corr_coinc_2[0].set_ydata(currentData_coinc_2 * 10)
                     if self.BlockIndex == 0:
 
-                        coincidences = numpy.sum(self.persistentData_coinc)
+                        coincidences = numpy.sum(self.persistentData_coinc_1)
                         self.coinc_idx += 1
                         self.coinc_x.append(self.coinc_idx)
                         self.coinc_y.append(coincidences)

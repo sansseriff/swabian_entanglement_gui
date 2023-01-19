@@ -231,6 +231,58 @@ class ValueIntegrate(Action):
         return "ValueIntegrate Action Object"
 
 
+class ValueIntegrateExtraData(Action):
+    def __init__(self, min_counts):
+        super().__init__()
+        self.min_counts = min_counts
+        self.counts = 0
+        self.coincidences_hist_1 = []
+        self.coincidences_hist_2 = []
+        self.hist_1 = None
+        self.hist_2 = None
+
+    def evaluate(self, current_time, counts, **kwargs):
+        if self.init_time == -1:
+            self.init_time = time.time()
+            # started
+            print("####### starting integrate")
+            self.hist_1 = kwargs.get("hist_1")
+            self.hist_2 = kwargs.get("hist_2")
+
+        self.counts = self.counts + counts  # add counts
+        self.coincidences_hist_1.extend(kwargs.get("coincidence_array_1"))
+        self.coincidences_hist_2.extend(kwargs.get("coincidence_array_2"))
+        self.hist_1 += kwargs.get("hist_1")
+        self.hist_2 += kwargs.get("hist_2")
+
+        if self.counts > self.min_counts:
+            # finish up
+            print("####### ending integrate")
+            print("length of coincidence array: ", len(self.coincidences_hist_1))
+            self.delta_time = current_time - self.init_time
+            self.final_state = {
+                "state": "finished",
+                "name": self.__class__.__name__,
+                "counts": self.counts,
+                "delta_time": self.delta_time,
+                "coincidences_hist_1": self.coincidences_hist_1,
+                "coincidences_hist_2": self.coincidences_hist_2,
+                "singles_hist_1": self.hist_1.tolist(),
+                "singles_hist_2": self.hist_2.tolist(),
+            }
+            return self.final_state
+        return {"state": "integrating"}
+
+    def reset(self):
+        self.init_time = -1
+        self.counts = 0
+        self.coincidences_hist_1 = []
+        self.coincidences_hist_2 = []
+
+    def __str__(self):
+        return "ValueIntegrate Action Object"
+
+
 class VoltageAndIntegrate(Action):
     def __init__(
         self, voltage, vsource, voltage_channel, inter_wait_time, time_per_point
@@ -571,7 +623,7 @@ class Extremum(Action):
             self.vsource.setVoltage(self.channel, round(self.get_voltage(), 3))
             self.init = True
 
-        response = self.event_list[self.cycle].evaluate(current_time, counts)
+        response = self.event_list[self.cycle].evaluate(current_time, counts, **kwargs)
 
         if response.get("state") == "finished":
             if self.cycle == 1:  # alternate bewteen Wait and integrate

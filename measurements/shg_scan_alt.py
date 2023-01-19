@@ -111,24 +111,16 @@ class UserInput(Action):
             return self.final_state
 
 
-class WaitUpdateWait(Action):
-    def __init__(self, main_window):
+class MinMaxSHG(Action):
+    def __init__(
+        self,
+        main_window,
+        start_min_voltage,
+        start_max_voltage,
+        req_shg_power,
+        voltage_source,
+    ):
         super().__init__()
-        self.add_action(Wait(1))
-        self.add_action(
-            UserInput(
-                main_window,
-                input_label="shg_true_power",
-                request_message="Change SHG power to XXX and enter true power",
-            )
-        )
-        self.add_action(Wait(1))
-
-
-class InputMinimizeSHG(Action):
-    def __init__(self, main_window, start_voltage, req_shg_power, voltage_source):
-        super().__init__()
-        self.environment = {}
         self.add_action(
             UserInput(
                 main_window,
@@ -136,74 +128,38 @@ class InputMinimizeSHG(Action):
                 request_message=f"Change SHG power to {req_shg_power} and enter true power",
             )
         )
-        # minimum = Extremum(
-        #     "min",
-        #     0.5,
-        #     1,
-        #     0.05,
-        #     voltage_source,
-        #     start_voltage,
-        #     fine_grain_mode=True,
-        #     low_res_steps=0,
-        #     steps=5,
-        # )
-        # minimum.update_start_iteration(3)  # jump straight to highest res mode
+        self.add_action(SetVoltage(start_min_voltage.get_val(), voltage_source, 2))
+        self.add_action(Wait(30))
         minimum = Extremum(
             "min",
             0.5,
             1,
             0.05,
             voltage_source,
-            start_voltage,
+            start_min_voltage,
             fine_grain_mode=True,
             low_res_steps=0,
             steps=5,
             int_type="custom",
         )
-        minimum.add_action(ValueIntegrateExtraData(1000))
+        minimum.add_action(ValueIntegrateExtraData(500))
         minimum.init_custom_integration()
         minimum.update_start_iteration(3)
         self.add_action(minimum)
-        # you should setup save_action so that the local self.environment gets saved.
-        self.enable_save()
 
-
-class InputMaximizeSHG(Action):
-    def __init__(self, main_window, start_voltage, req_shg_power, voltage_source):
-        super().__init__()
-        self.environment = {}
-        self.add_action(
-            UserInput(
-                main_window,
-                input_label="shg_true_power",
-                request_message=f"Change SHG power to {req_shg_power} and enter true power",
-            )
-        )
-        # maximum = Extremum(
-        #     "max",
-        #     0.25,
-        #     4,
-        #     0.2,
-        #     voltage_source,
-        #     start_voltage,
-        #     fine_grain_mode=True,
-        #     low_res_steps=0,
-        #     steps=5,
-        # )
-        # maximum.update_start_iteration(3)
-        # self.add_action(maximum)
-
+        self.add_action(SetVoltage(start_max_voltage.get_val(), voltage_source, 2))
+        self.add_action(Wait(30))
         maximum = Extremum(
             "max",
             0.25,
             4,
             0.2,
             voltage_source,
-            start_voltage,
+            start_max_voltage,
             fine_grain_mode=True,
             low_res_steps=0,
             steps=5,
-            int_type="custom",
+            int_type="custom",  # add custom integrate action
         )
         maximum.add_action(ValueIntegrateExtraData(20000))
         maximum.init_custom_integration()
@@ -213,7 +169,7 @@ class InputMaximizeSHG(Action):
         self.enable_save()
 
 
-class SHG_Scan(Action):
+class SHG_Scan_Alt(Action):
     def __init__(self, main_window, voltage_source):
         super().__init__()
         with open("./measurements/shg_scan.yaml", "r", encoding="utf8") as stream:
@@ -231,38 +187,19 @@ class SHG_Scan(Action):
         # a store is like a mutable persistent value that can be used and updated across actions.
         start_min_voltage = Store(voltage=2.58)
         start_max_voltage = Store(voltage=1.58)
-        self.add_action(SetVoltage(start_min_voltage.get_val(), voltage_source, 2))
-        self.add_action(Wait(30))
-        for shg_power in shg_powers:
-            self.add_action(
-                InputMinimizeSHG(
-                    main_window, start_min_voltage, shg_power, voltage_source
-                )
-            )
+        # self.add_action(SetVoltage(start_min_voltage.get_val(), voltage_source, 2))
+        # self.add_action(Wait(30))
 
-        # finished with scanning the mins, now wait and scan the maxes.
-        self.add_action(SetVoltage(start_max_voltage.get_val(), voltage_source, 2))
-        self.add_action(Wait(10))
         for shg_power in shg_powers:
             self.add_action(
-                InputMaximizeSHG(
-                    main_window, start_max_voltage, shg_power, voltage_source
+                MinMaxSHG(
+                    main_window,
+                    start_min_voltage,
+                    start_max_voltage,
+                    shg_power,
+                    voltage_source,
                 )
             )
 
 
-if __name__ == "__main__":
-    # thing = VoltageStore(3)
-    # thing.voltage = 5
-    # print(thing.voltage)
-    # thing.voltage = 3.3
-    # print(random_function(thing.voltage))
-    # print(thing.export_data())
-
-    thing = IntLike(5)
-    # print(thing)
-    thing = 3
-    print(thing)
-    thing = 2
-    print(thing)
-    print(type(thing))
+# if __name__ == "__main__":
