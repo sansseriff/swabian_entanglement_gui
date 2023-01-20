@@ -119,7 +119,7 @@ class EntanglementControlWindow(object):
         sizePolicy.setHeightForWidth(self.channelA.sizePolicy().hasHeightForWidth())
         self.channelA.setSizePolicy(sizePolicy)
         self.channelA.setMinimum(-99)
-        self.channelA.setProperty("value", 9)
+        self.channelA.setProperty("value", -1)
         self.channelA.setObjectName("channelA")
         self.gridLayout.addWidget(self.channelA, 1, 1, 1, 1)
 
@@ -132,7 +132,7 @@ class EntanglementControlWindow(object):
         sizePolicy.setHeightForWidth(self.channelC.sizePolicy().hasHeightForWidth())
         self.channelC.setSizePolicy(sizePolicy)
         self.channelC.setMinimum(-99)
-        self.channelC.setProperty("value", -14)
+        self.channelC.setProperty("value", 9)
         self.channelC.setObjectName("channelC")
         self.gridLayout.addWidget(self.channelC, 3, 1, 1, 1)
 
@@ -145,7 +145,7 @@ class EntanglementControlWindow(object):
         sizePolicy.setHeightForWidth(self.channelD.sizePolicy().hasHeightForWidth())
         self.channelD.setSizePolicy(sizePolicy)
         self.channelD.setMinimum(-99)
-        self.channelD.setProperty("value", 18)
+        self.channelD.setProperty("value", 9)
         self.channelD.setObjectName("channelD")
         self.gridLayout.addWidget(self.channelD, 4, 1, 1, 1)
 

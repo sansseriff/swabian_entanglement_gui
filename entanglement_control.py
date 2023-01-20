@@ -138,7 +138,7 @@ class CoincidenceExample(QMainWindow):
         self.measurements_dirty = False
         self.tagger = tagger
         self.IntType = "Rolling"
-        self.last_channels = [9, -5, -14, 18]
+        self.last_channels = [-1, -5, 9, 9]
         self.active_channels = []
         self.last_coincidenceWindow = 0
         self.updateMeasurements()
@@ -155,11 +155,11 @@ class CoincidenceExample(QMainWindow):
         self.timer.timeout.connect(self.draw)
         self.timer.start(50)
         self.clock_divider = 2000  # divider 156.25MHz down to 78.125 KHz
-        self.tagger.setEventDivider(18, self.clock_divider)
+        self.tagger.setEventDivider(9, self.clock_divider)
 
         self.VSource = teledyneT3PS("10.7.0.147", port=1026)
         self.VSource.connect()
-        self.VSource.set_max_voltage(5.0)
+        # self.VSource.set_max_voltage(5.0)
         self.VSource.enableChannel(2)
         self.VSource.setCurrent(2, 0.20)
         V_init = self.VSource.getVoltage(2)
@@ -173,7 +173,7 @@ class CoincidenceExample(QMainWindow):
         self.measurements_dirty = False
         self.tagger = tagger
         self.IntType = "Rolling"
-        self.last_channels = [9, -5, -14, 18]
+        self.last_channels = [-1, -5, 9, 9]
         self.last_coincidenceWindow = 0
         self.updateMeasurements()
         self.inputValid = False  # used for staring visibility scan
@@ -183,7 +183,7 @@ class CoincidenceExample(QMainWindow):
         self.timer = QTimer()
         self.timer.timeout.connect(self.draw)
         self.timer.start(10)
-        self.tagger.setEventDivider(18, self.clock_divider)
+        self.tagger.setEventDivider(9, self.clock_divider)
 
     def getCouterNormalizationFactor(self):
         bin_index = self.counter.getIndex()
@@ -551,7 +551,7 @@ class CoincidenceExample(QMainWindow):
             self.tagger.setDeadtime(
                 channels[3] * -1, int(self.ui.deadTimeD.value() * 1000)
             )
-        self.tagger.setEventDivider(18, self.clock_divider)
+        self.tagger.setEventDivider(9, self.clock_divider)
         # self.a_combined = AverageChannel(self.tagger, -2, (-2, -3, -4))
         # self.b_combined = AverageChannel(self.tagger, -6, (-6, -7, -8))
 
@@ -1462,8 +1462,8 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
 
-    # used to check if JPL swabian supports high res. It does not.
-    tagger = createTimeTagger(resolution=Resolution.HighResC)
+    # For TimeTagger X (rack mount version) only HighResB is supported
+    tagger = createTimeTagger(resolution=Resolution.HighResB)
     # tagger.setSoftwareClock
     # tagger = createTimeTagger()
 
