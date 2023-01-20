@@ -6,7 +6,14 @@ This software is used measure coincidences and control the high rate entanglemen
 
 ## Getting Started
 
-1. Install the [swabian timetagger software](https://www.swabianinstruments.com/time-tagger/downloads/)
+1. In a directory of your choice, initialize a git repo and pull from this repo. 
+
+```shell
+git init
+git pull https://github.com/sansseriff/swabian_entanglement_gui.git 
+```
+
+2. Install the [swabian timetagger software](https://www.swabianinstruments.com/time-tagger/downloads/)
     - On redhat, navigate to the location of the file and install with:
     ```
     sudo yum install name-of-timetagger-file.rpm
@@ -29,17 +36,21 @@ This software is used measure coincidences and control the high rate entanglemen
     Note down the path to these files, and save for later. I'll call this ```<default-python-path>```
     
 
-2. Using anaconda, run the following in shell: 
+3. Using anaconda, run the following in shell: 
 ```shell
 conda env create -f environment.yaml
 ```
 
-3. After that is finished, activate the environment:
+4. After that is finished, activate the environment:
 ```shell
 conda activate entanglement
 ```
 
-4. You will need to copy the files from step 1 into the new entanglement environment site-packages folder. With the ```entanglement``` environment activated, run the ```get_site_packages.py``` script and note the path in the output. I'll call this path ```<entanglement-path>```.
+5. You will need to copy the files from step 1 into the new entanglement environment site-packages folder. Activate the environment:
+```shell
+conda activate entanglement 
+```
+Then run the ```get_site_packages.py``` file to get the path to the correct site-packages folder. I'll call this path ```<entanglement-path>```.
 
 Run the following commands, inserting the relevant paths. 
 
