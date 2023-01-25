@@ -12,6 +12,7 @@ from PySide2.QtCore import (
 import threading
 import yaml
 from dataclasses import dataclass
+import logging
 
 
 # self.input_handler = threading.Thread(target=self.entanglement_measurment)

@@ -12,55 +12,8 @@ from PySide2.QtCore import (
 import threading
 import yaml
 from dataclasses import dataclass
-
-
-# self.input_handler = threading.Thread(target=self.entanglement_measurment)
-# # self.input_handler = threading.Thread(target=self.handleScanInput)
-# self.input_handler.start()
-
-
-# message[0] = input("this is the shg power currently: ")
-
-
-# class Worker(QRunnable):
-#     """
-#     Worker thread
-#     """
-
-#     @Slot()  # QtCore.Slot
-#     def run(self):
-#         """
-#         Your code goes in this function
-#         """
-#         print("Thread start")
-#         time.sleep(5)
-#         print("Thread complete")
-
-
-# @dataclass
-# class VoltageStore:
-#     def __init__(self, init_voltage):
-#         self._voltage = init_voltage
-#         self._voltages = []
-
-#     # Define a "voltage" getter
-#     @property
-#     def voltage(self):
-#         return self._voltage
-
-#     # Define a "name" setter
-#     @voltage.setter
-#     def voltage(self, value):
-#         self._voltage = value
-#         print("voltage updated to: ", self._voltage)
-#         self._voltages.append(value)
-
-#     def export_data(self):
-#         # self.voltage = self._voltage
-#         # self.voltages = self._voltages
-#         # del self._voltages
-#         # del self._voltage
-#         return self.__dict__
+from .pump_power_manager import PumpPowerManager
+import logging
 
 
 class TextDialog(QObject):
@@ -169,6 +122,60 @@ class MinMaxSHG(Action):
         self.enable_save()
 
 
+class MinMaxSHGAutoPower(Action):
+    def __init__(
+        self,
+        main_window,
+        start_min_voltage,
+        start_max_voltage,
+        shg_power,
+        voltage_source,
+    ):
+        super().__init__()
+
+        self.add_action(SetPower(shg_power, voltage_source, 1))
+        self.add_action(Wait(1))
+        self.add_action(SetVoltage(start_min_voltage.get_val(), voltage_source, 2))
+        self.add_action(Wait(10))  # 30
+        minimum = Extremum(
+            "min",
+            0.5,
+            1,
+            0.05,
+            voltage_source,
+            start_min_voltage,
+            fine_grain_mode=True,
+            low_res_steps=0,
+            steps=5,
+            int_type="custom",
+        )
+        minimum.add_action(ValueIntegrateExtraData(50))  # 500
+        minimum.init_custom_integration()
+        minimum.update_start_iteration(3)
+        self.add_action(minimum)
+
+        self.add_action(SetVoltage(start_max_voltage.get_val(), voltage_source, 2))
+        self.add_action(Wait(10))  # 30
+        maximum = Extremum(
+            "max",
+            0.25,
+            4,
+            0.2,
+            voltage_source,
+            start_max_voltage,
+            fine_grain_mode=True,
+            low_res_steps=0,
+            steps=5,
+            int_type="custom",  # add custom integrate action
+        )
+        maximum.add_action(ValueIntegrateExtraData(1000))  # 20000
+        maximum.init_custom_integration()
+        maximum.update_start_iteration(3)
+        self.add_action(maximum)
+        # you should setup save_action so that the local self.environment gets saved.
+        self.enable_save()
+
+
 class SHG_Scan_Alt(Action):
     def __init__(self, main_window, voltage_source):
         super().__init__()
@@ -193,6 +200,36 @@ class SHG_Scan_Alt(Action):
         for shg_power in shg_powers:
             self.add_action(
                 MinMaxSHG(
+                    main_window,
+                    start_min_voltage,
+                    start_max_voltage,
+                    shg_power,
+                    voltage_source,
+                )
+            )
+
+
+class SHGScanAutoPower(Action):
+    def __init__(self, main_window, voltage_source):
+        super().__init__()
+        with open("./measurements/shg_scan.yaml", "r", encoding="utf8") as stream:
+            try:
+                params = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                print(exc)
+        params = params["shg_scan"]
+        shg_powers = np.linspace(
+            params["start_power"], params["end_power"], params["steps"]
+        ).tolist()
+
+        shg_powers = [round(power, 3) for power in shg_powers]
+        # a store is like a mutable persistent value that can be used and updated across actions.
+        start_min_voltage = Store(voltage=2.58)
+        start_max_voltage = Store(voltage=1.58)
+
+        for shg_power in shg_powers:
+            self.add_action(
+                MinMaxSHGAutoPower(
                     main_window,
                     start_min_voltage,
                     start_max_voltage,

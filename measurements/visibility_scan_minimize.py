@@ -10,6 +10,7 @@ from .measurement_management import (
     Scan,
 )
 import yaml
+import logging
 
 
 class VisibilityScanMinimize(Action):

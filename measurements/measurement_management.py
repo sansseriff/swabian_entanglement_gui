@@ -4,6 +4,8 @@ import numpy as np
 import json
 import random
 from dataclasses import dataclass
+from .pump_power_manager import PumpPowerManager
+import logging
 
 """
 The action framework is used to build and specify measurements in a composable and modular fashion so that they
@@ -16,6 +18,8 @@ or actions can be customized to do specific things
 Andrew Mueller 2022
 """
 
+logger = logging.getLogger(__name__)
+
 
 class Action:
     def __init__(self):
@@ -26,11 +30,13 @@ class Action:
         self.save_name = "output_file.json"
         self.save = False
         self.environment = {}  # used for accessing persistent data
+        logger.debug(f"Initializing Action: {self.__class__.__name__}")
 
     def add_action(self, object):
         self.event_list.append(object)
 
     def evaluate(self, current_time, counts, **kwargs):
+        logger.debug(f"Evaluating Action: {self.__class__.__name__}")
         if self.pass_state:
             return {"state": "passed"}
             """remember how I decided an object should be allowed 
@@ -109,12 +115,40 @@ class SetVoltage(Action):
         self.channel = channel
 
     def evaluate(self, current_time, counts, **kwargs):
+        logger.debug(f"Evaluating Action: {self.__class__.__name__}")
         self.vsource.setVoltage(self.channel, round(self.voltage, 3))
         print("####### setting voltage to", round(self.voltage, 3))
+        logger.info(
+            f"     {self.__class__.__name__}: setting voltage to: {round(self.voltage, 3)}"
+        )
         self.final_state = {
             "state": "finished",
             "name": self.__class__.__name__,
             "voltage": self.voltage,
+        }
+        return self.final_state
+
+    def __str__(self):
+        return "SetVoltage Action Object"
+
+
+class SetPower:
+    def __init__(self, power, vsource, channel):
+        super().__init__()
+        self.power = power
+        self.power_manager = PumpPowerManager(vsource, channel)
+
+    def evaluate(self, current_time, counts, **kwargs):
+        logger.debug(f"Evaluating Action: {self.__class__.__name__}")
+        logger.info(
+            f"     {self.__class__.__name__}: setting power to: {round(self.power, 3)}"
+        )
+        result = self.power_manager.change_pump_power(self.power)
+
+        self.final_state = {
+            "state": "finished",
+            "name": self.__class__.__name__,
+            "result": result,
         }
         return self.final_state
 
@@ -149,9 +183,13 @@ class Wait(Action):
         self.wait_time = wait_time
 
     def evaluate(self, current_time, counts, **kwargs):
+        logger.debug(f"Evaluating Action: {self.__class__.__name__}")
         if self.init_time == -1:
             self.init_time = time.time()
         if (current_time - self.init_time) > self.wait_time:
+            logger.info(
+                f"     {self.__class__.__name__}: Finishing. Time Waited: {current_time - self.init_time}"
+            )
             self.final_state = {
                 "state": "finished",
                 "name": self.__class__.__name__,
@@ -172,13 +210,19 @@ class Integrate(Action):
         self.counts = 0
 
     def evaluate(self, current_time, counts, **kwargs):
+        logger.debug(f"Evaluating Action: {self.__class__.__name__}")
         if self.init_time == -1:
-            self.init_time = time.time()
+            self.init_time = current_time
             return {"state": "integrating"}
-        self.counts = self.counts + counts  # add counts
+        else:
+            # only add counts for evaluations after the init evaluation
+            self.counts = self.counts + counts  # add counts
 
         if (current_time - self.init_time) > self.int_time:
             self.delta_time = current_time - self.init_time
+            logger.info(
+                f"     {self.__class__.__name__}: Finishing. Time Integrating: {round(self.delta_time,3)}"
+            )
             self.final_state = {
                 "state": "finished",
                 "name": self.__class__.__name__,
@@ -203,16 +247,19 @@ class ValueIntegrate(Action):
         self.counts = 0
 
     def evaluate(self, current_time, counts, **kwargs):
+        logger.debug(f"Evaluating Action: {self.__class__.__name__}")
         if self.init_time == -1:
-            self.init_time = time.time()
+            self.init_time = current_time
             # started
-            print("####### starting integrate")
-
-        self.counts = self.counts + counts  # add counts
+            logger.info(f"     {self.__class__.__name__}: Starting Integrate")
+        else:
+            self.counts = self.counts + counts  # add counts
 
         if self.counts > self.min_counts:
             # finish up
-            print("####### ending integrate")
+            logger.info(
+                f"     {self.__class__.__name__}: Finishing. Time: {round(self.delta_time,3)} Counts: {self.counts}"
+            )
             self.delta_time = current_time - self.init_time
             self.final_state = {
                 "state": "finished",
@@ -232,7 +279,7 @@ class ValueIntegrate(Action):
 
 
 class ValueIntegrateExtraData(Action):
-    def __init__(self, min_counts):
+    def __init__(self, min_counts, minimum_evaluations=3):
         super().__init__()
         self.min_counts = min_counts
         self.counts = 0
@@ -240,25 +287,35 @@ class ValueIntegrateExtraData(Action):
         self.coincidences_hist_2 = []
         self.hist_1 = None
         self.hist_2 = None
+        self.evaluations = 0
+        self.minimum_evaluations = minimum_evaluations
 
     def evaluate(self, current_time, counts, **kwargs):
+        logger.debug(f"Evaluating Action: {self.__class__.__name__}")
+        self.evaluations += 1
+
         if self.init_time == -1:
-            self.init_time = time.time()
+            self.init_time = current_time
             # started
-            print("####### starting integrate")
+            logger.info(f"     {self.__class__.__name__}: Starting Integrate")
             self.hist_1 = kwargs.get("hist_1")
             self.hist_2 = kwargs.get("hist_2")
+        else:
+            # only add counts for iterations after the init iteration.
+            # count data 'belongs' to the time bewteen the init iteration and the ending iteration
+            self.counts = self.counts + counts  # add counts
+            self.coincidences_hist_1.extend(kwargs.get("coincidence_array_1"))
+            self.coincidences_hist_2.extend(kwargs.get("coincidence_array_2"))
+            self.hist_1 += kwargs.get("hist_1")
+            self.hist_2 += kwargs.get("hist_2")
+            logger.debug(
+                f"     {self.__class__.__name__}: Adding counts. Counts: {self.counts}"
+            )
 
-        self.counts = self.counts + counts  # add counts
-        self.coincidences_hist_1.extend(kwargs.get("coincidence_array_1"))
-        self.coincidences_hist_2.extend(kwargs.get("coincidence_array_2"))
-        self.hist_1 += kwargs.get("hist_1")
-        self.hist_2 += kwargs.get("hist_2")
+        if (self.counts > self.min_counts) and (
+            self.evaluations > self.minimum_evaluations
+        ):
 
-        if self.counts > self.min_counts:
-            # finish up
-            print("####### ending integrate")
-            print("length of coincidence array: ", len(self.coincidences_hist_1))
             self.delta_time = current_time - self.init_time
             self.final_state = {
                 "state": "finished",
@@ -270,14 +327,19 @@ class ValueIntegrateExtraData(Action):
                 "singles_hist_1": self.hist_1.tolist(),
                 "singles_hist_2": self.hist_2.tolist(),
             }
+            logger.info(
+                f"     {self.__class__.__name__}: Finishing. Counts: {self.counts}, delta_time: {self.delta_time}"
+            )
             return self.final_state
         return {"state": "integrating"}
 
     def reset(self):
+        logger.info(f"     {self.__class__.__name__}: Resetting Action")
         self.init_time = -1
         self.counts = 0
         self.coincidences_hist_1 = []
         self.coincidences_hist_2 = []
+        self.evaluations = 0
 
     def __str__(self):
         return "ValueIntegrate Action Object"
@@ -322,8 +384,10 @@ class DistributeData(Action):
         if self.initialized is False:
             self.data = kwargs.get(self.data_name)
             if kwargs.get(self.data_name) is None:
-                print("Error: injected data is None")
-            print("Data for distribution loaded")
+                logger.warning(
+                    f"     {self.__class__.__name__}: Error: injected data is None"
+                )
+            logger.info(f"     {self.__class__.__name__}: Data for distribution loaded")
             self.initialized = True
 
         if self.pass_state:
@@ -342,7 +406,7 @@ class DistributeData(Action):
             self.results.append(response)
             self.event_list.pop(0)
             if len(self.event_list) == 0:
-                print("finished event action: ", self.__class__.__name__)
+                logger.info(f"     {self.__class__.__name__}: Finishing action")
                 self.pass_state = True  # deactivates this function in this object
                 self.final_state = {
                     "state": "finished",
@@ -566,10 +630,16 @@ class Extremum(Action):
 
     def update_rate(self):
         self.change_rate = self.original_rate * (0.5**self.fine_grain_iteration)
+        logger.info(
+            f"     {self.__class__.__name__}: Updating rate. New rate: {self.change_rate}"
+        )
 
     def update_time(self):
         self.event_list[1].int_time = self.org_integration_time * (
             4**self.fine_grain_iteration
+        )
+        logger.info(
+            f"     {self.__class__.__name__}: Updating time. New time: {self.event_list[1].int_time}"
         )
 
     def get_voltage(self):
@@ -608,7 +678,9 @@ class Extremum(Action):
 
         if self.init is False:
             if kwargs.get(self.data_name) is not None:
-                print("data loaded with name: ", self.data_name)
+                logger.info(
+                    f"     {self.__class__.__name__}: Data loaded with name: {self.data_name}"
+                )
                 if self.extremum_type == "min":
                     idx_extreme = np.argmin(kwargs[self.data_name]["results"]["viz"])
                 if self.extremum_type == "max":
@@ -616,10 +688,12 @@ class Extremum(Action):
 
                 voltage_min = kwargs[self.data_name]["results"]["voltage"][idx_extreme]
                 print("voltage min: ", voltage_min)
-                # self.voltage = voltage_min  # apply minimum from graph
-                self.update_voltage(voltage_min)
 
-            print("###### VOLTAGE: ", round(self.get_voltage(), 3))
+                # self.voltage = voltage_min  # apply minimum from graph
+                self.set_voltage(voltage_min)
+            logger.info(
+                f"     {self.__class__.__name__}: Updating init voltage: {round(self.get_voltage(), 3)}"
+            )
             self.vsource.setVoltage(self.channel, round(self.get_voltage(), 3))
             self.init = True
 
@@ -632,6 +706,9 @@ class Extremum(Action):
                 self.cycle = 1
 
             if response.get("name") == self.int_name:
+                logger.info(
+                    f"     {self.__class__.__name__}: Finished integrate, resetting integrate"
+                )
                 self.event_list[1].reset()  # reset the integrate
                 self.counts_list.append(response["counts"])
                 print("counts: ", response["counts"])
@@ -665,10 +742,13 @@ class Extremum(Action):
                 delta = self.change_rate * self.direction()
                 self.old_voltage = self.get_voltage()
                 self.set_voltage(self.get_voltage() + delta)
-                print("## VOLTAGE: ", round(self.get_voltage(), 3))
+                logger.info(
+                    f"     {self.__class__.__name__}: Updating voltage: {round(self.get_voltage(), 3)}"
+                )
                 self.vsource.setVoltage(self.channel, round(self.get_voltage(), 3))
                 self.voltage_list.append(self.old_voltage)
                 self.prev_coinc_rate = coinc_rate
+                print("finished 1")
 
                 if (
                     self.fine_grain_mode
@@ -697,10 +777,14 @@ class Extremum(Action):
                         ]
 
                 # stop minimization after 2nd fine grain iteration
+                logger.info(f"     {self.__class__.__name__}: Before Question")
                 if (
                     len(self.direction_list) > self.steps
                     and self.fine_grain_iteration == 3
                 ):
+                    logger.info(
+                        f"     {self.__class__.__name__}: Finishing. counts_list: {self.counts_list}, times_list: {self.times_list}, voltage_list: {self.voltage_list}"
+                    )
                     # imbalance = self.direction_list[-4:]
                     # self.direction_array.append(self.direction_list)
                     # print("imbalance list: ", imbalance)
@@ -718,8 +802,9 @@ class Extremum(Action):
                     if self.save:
                         self.do_save()
                     return self.final_state
-                print()
-                print()
+                logger.info(
+                    f"     {self.__class__.__name__}: Working. Processing integration finished. coinc_rate: {coinc_rate}"
+                )
                 return {
                     "state": "working",
                     "name": self.__class__.__name__,
@@ -729,6 +814,8 @@ class Extremum(Action):
                         "color": self.data_color,
                     },
                 }
+
+        logger.debug(f"     {self.__class__.__name__}: Working. ")
         return {"state": "working", "name": self.__class__.__name__}
 
     def __str__(self):
