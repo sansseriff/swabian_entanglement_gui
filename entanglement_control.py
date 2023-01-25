@@ -1,9 +1,9 @@
 # PySide2 for the UI
 from multiprocessing import Event
 from pty import slave_open
-from PySide2.QtWidgets import QMainWindow, QApplication, QFileDialog, QInputDialog
-from PySide2.QtCore import QTimer
-from PySide2.QtGui import QPalette, QColor
+from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QInputDialog
+from PyQt5.QtCore import QTimer
+from PyQt5.QtGui import QPalette, QColor
 
 # matplotlib for the plots, including its Qt backend
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
@@ -62,7 +62,9 @@ from SocketClient import SocketClient
 from awgClient import AWGClient
 from measurements.visibility_scan_minimize import VisibilityScanMinimize
 from measurements.shg_scan import TextDialog, SHG_Scan
-from measurements.shg_scan_alt import TextDialog, SHG_Scan_Alt
+from measurements.shg_scan_alt import TextDialog, SHG_Scan_Alt, SHGScanAutoPower
+
+import logging
 
 
 class CoincidenceExample(QMainWindow):
@@ -76,11 +78,12 @@ class CoincidenceExample(QMainWindow):
         super(CoincidenceExample, self).__init__()
         self.ui = EntanglementControlWindow()
         self.ui.setupUi(self)
-        self.ui.startButton.clicked.connect(self.load_file_params)
-        self.ui.clockRefMode.clicked.connect(self.clockRefMode)
+        self.ui.loadparamsButton.clicked.connect(self.load_file_params)
+        self.ui.clockrefButton.clicked.connect(self.clockRefMode)
         self.ui.clearButton.clicked.connect(self.getVisibility)
         self.ui.saveButton.clicked.connect(self.saveHistData)
         # self.ui.measure_viz.clicked.connect(self.measure_viz)
+        self.ui.vsourceButton.clicked.connect(self.initVsource)
         self.ui.initScan.clicked.connect(self.initVisibility)
         self.ui.set_intf_voltage.clicked.connect(self.set_intf_voltage)
 
@@ -154,18 +157,26 @@ class CoincidenceExample(QMainWindow):
         self.timer = QTimer()
         self.timer.timeout.connect(self.draw)
         self.timer.start(50)
-        self.clock_divider = 2000  # divider 156.25MHz down to 78.125 KHz
+        self.clock_divider = 100  # divider 156.25MHz down to 78.125 KHz
         self.tagger.setEventDivider(9, self.clock_divider)
 
+        for arg in sys.argv:
+            if arg == "-auto_init":
+                # use this to get everything running right from the beginning.
+                # do not use for debugging
+                self.initVsource()
+                self.load_file_params()
+                self.clockRefMode()
+                self.zoomInOnPeak()
+
+    def initVsource(self):
         self.VSource = teledyneT3PS("10.7.0.147", port=1026)
         self.VSource.connect()
-        # self.VSource.set_max_voltage(5.0)
         self.VSource.enableChannel(2)
         self.VSource.setCurrent(2, 0.20)
         V_init = self.VSource.getVoltage(2)
         print("VSource Initialized With Voltage: ", V_init)
         self.ui.intf_voltage.setProperty("value", V_init)
-        self.clockRefMode()
 
     def reInit(self):
         # Create the TimeTagger measurements
@@ -390,11 +401,11 @@ class CoincidenceExample(QMainWindow):
                 bins[:-1] * 1e-3, histogram_coinc_2 * 10, color="#591919", alpha=0.5
             )
 
+            # self.box = self.correlationAxis.axvspan(
+            #     xmin=80 * 1e-3, xmax=160 * 1e-3, alpha=0.1, color="red"
+            # )
             self.box = self.correlationAxis.axvspan(
-                xmin=90 * 1e-3, xmax=158 * 1e-3, alpha=0.1, color="red"
-            )
-            self.box = self.correlationAxis.axvspan(
-                xmin=80 * 1e-3, xmax=148 * 1e-3, alpha=0.1, color="blue"
+                xmin=80 * 1e-3, xmax=160 * 1e-3, alpha=0.1, color="blue"
             )
             self.coinc_x = []
             self.coinc_y = []
@@ -424,7 +435,6 @@ class CoincidenceExample(QMainWindow):
         self.fig.tight_layout()
 
         self.measurements_dirty = False
-
         # Update the plot with real numbers
         self.draw()
         ####
@@ -946,6 +956,7 @@ class CoincidenceExample(QMainWindow):
         self.ui.delayA.setValue(-90000)
         self.ui.delayB.setValue(90000)
         self.ui.delayC.setValue(0)
+        self.ui.delayD.setValue(0)
         self.ui.correlationBinwidth.setValue(10)
         self.ui.correlationBins.setValue(36000)  # that's 300 ns
         self.correlation = Histogram(
@@ -1004,10 +1015,11 @@ class CoincidenceExample(QMainWindow):
         guass_ext = self.gaussian(int(extra_len), int(extra_len / 2), 15)
 
         # create psuedo-data that's perfectly centered
-        base_array = numpy.concatenate((guass, guass * 1.5, guass_ext))
-        base_array = numpy.roll(base_array, -18)  # fudge value
+        base_array = numpy.concatenate((guass, guass * 2, guass_ext))
+        base_array = numpy.roll(base_array, -8)  # fudge value
         clock_similar = self.match_filter(persistentData_ent1, base_array)
         self.ui.delayC.setValue(-numpy.argmax(clock_similar))
+        self.ui.delayD.setValue(-numpy.argmax(clock_similar))
 
     def gaussian(self, length, mu, sig):
         x = numpy.arange(length)
@@ -1083,7 +1095,9 @@ class CoincidenceExample(QMainWindow):
         # )
 
     def clockRefMode(self):
-        self.load_file_params()
+        # self.load_file_params()
+        print("make sure correct params are loaded iwth <Load File Params>")
+        print("makre sure a valid clock signal on channel ", self.active_channels[2])
 
         self.startPLL(
             self.active_channels[0], self.active_channels[1], self.active_channels[2]
@@ -1191,7 +1205,11 @@ class CoincidenceExample(QMainWindow):
     def entanglement_measurement(self):
 
         # self.event_loop_action = VisibilityScanMinimize(self.VSource, self.clockAxis)
-        self.event_loop_action = SHG_Scan_Alt(self, self.VSource)
+        # self.event_loop_action = SHG_Scan_Alt(self, self.VSource)  # request user input for shg power
+        self.VSource.enableChannel(1)
+        self.event_loop_action = SHGScanAutoPower(
+            self, self.VSource
+        )  # set power automatically with voltage source
 
         # self.event_loop_action = WaitUpdateWait(self)
 
@@ -1310,7 +1328,6 @@ class CoincidenceExample(QMainWindow):
 
     def draw(self):
         """Handler for the timer event to update the plots"""
-
         if self.running:
             if self.BlockIndex >= int(self.ui.IntTime.value() * 10):
                 self.BlockIndex = 0
@@ -1460,7 +1477,29 @@ class CoincidenceExample(QMainWindow):
 if __name__ == "__main__":
     import sys
 
+    # print(sys.argv)
     app = QApplication(sys.argv)
+
+    logger = logging.getLogger("measure")
+
+    # To override the default severity of logging
+    logger.setLevel("DEBUG")
+
+    # Use FileHandler() to log to a file
+    file_handler = logging.FileHandler("measurment_managment.log")
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    formatter = logging.Formatter(log_format)
+    file_handler.setFormatter(formatter)
+
+    # Don't forget to add the file handler
+    logger.addHandler(file_handler)
+
+
+
+
+
+
+
 
     # For TimeTagger X (rack mount version) only HighResB is supported
     tagger = createTimeTagger(resolution=Resolution.HighResB)

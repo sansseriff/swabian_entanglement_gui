@@ -173,7 +173,7 @@ class MinMaxSHGAutoPower(Action):
         maximum.update_start_iteration(3)
         self.add_action(maximum)
         # you should setup save_action so that the local self.environment gets saved.
-        self.enable_save()
+        # self.enable_save()
 
 
 class SHG_Scan_Alt(Action):
@@ -237,6 +237,7 @@ class SHGScanAutoPower(Action):
                     voltage_source,
                 )
             )
+        self.enable_save("shg_scan_results.json")
 
 
 # if __name__ == "__main__":

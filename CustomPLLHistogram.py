@@ -170,11 +170,18 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         """
 
         error = 0
-        ch1_siv_start = 90  # - 20  # blue
-        ch1_siv_end = 158  # + 20  # blue
+        # ch1_siv_start = 90  # - 20  # blue
+        # ch1_siv_end = 158  # + 20  # blue
+
+        # ch2_siv_start = 80  # - 20  # red
+        # ch2_siv_end = 148  # + 20  # red
+
+        ch1_siv_start = 80  # - 20  # blue
+        ch1_siv_end = 160  # + 20  # blue
 
         ch2_siv_start = 80  # - 20  # red
-        ch2_siv_end = 148  # + 20  # red
+        ch2_siv_end = 160  # + 20  # red
+
         buffer_tag_raw = 0
         buffer_tag_hist = 0
         buffer_cycle = 0

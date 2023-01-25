@@ -67,19 +67,25 @@ Navigate back to the program directory:
 cd <entanglement-path>
 ```
 
-run the program with:
+With the entanglement environment still activated, run the program with:
 ```shell
 python entanglement_control.py
 ```
 
-Hit the "Load File Params" button first, then the "Clock Referenced Mode" button to activate the PLL. 
+Select the `Load File Params` button first. Select the `Init VSource` button to connect to the Teledyne T3PS2303P voltage source. Then select the `Clock Referenced Mode` button to activate the PLL custom measurement. Each one of these activations may cause errors you will have to solve. The PLL will currently crash unless a valid clock signal is specified on channels C (and channel D for timetagger X in high res mode). 
 
+
+There is an optional `-auto_init` argument. Use it like this:
+```shell
+python entanglement_control.py -auto_init
+```
+This loads the file params, connects to the voltage source, and runs the PLL immediately . This is not recommended during debugging because it can make it difficult to determine what module is causing the program to crash. 
 
 
 ## Notes and Tips
 
 - Lower the count rate if you get an error similar to ```SWIG director method error. In method 'next_impl': ZeroDivisionError```
 
-- The button for Clock Referenced Mode engages the the software defined PLL. After pressing this, select 'Zoom to Peak' to scan in time for the entangled photon pairs coincidence peak. This button should also center the largest time bin in the center of the histogram on the lower left. 
+- The button for Clock Referenced Mode engages the the software defined PLL. After pressing this, select 'Zoom to Peak' to scan in time for the entangled photon pairs coincidence peak. This button should also center the largest time bin in the center of the histogram on the lower left. Note that it works better if the phase of the control interferometer is set so that the center bin has maximized count rate. 
 
-- Some fields in the gui may not be used, like the saveName dialogue. You can hook into these gui features by customizing the code if you wish. (I often rename buttons in ```entanglement_control_window.py``` and re-assign them to point to differnt functions.)
+- Some fields in the gui may not be used, like the saveName dialogue. You can hook into these gui features by customizing the code if you wish. (I often rename buttons in ```entanglement_control_window.py``` and re-assign them to point to different functions.)

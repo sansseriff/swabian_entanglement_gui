@@ -18,7 +18,37 @@ or actions can be customized to do specific things
 Andrew Mueller 2022
 """
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger("ent")
+
+# # Create handlers
+# c_handler = logging.StreamHandler()
+# f_handler = logging.FileHandler("app.log")
+# c_handler.setLevel(logging.DEBUG)
+# f_handler.setLevel(logging.DEBUG)
+
+# # Create formatters and add it to handlers
+# c_format = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+# f_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+# c_handler.setFormatter(c_format)
+# f_handler.setFormatter(f_format)
+# # Add handlers to the logger
+# logger.addHandler(c_handler)
+# logger.addHandler(f_handler)
+
+
+logger = logging.getLogger("measure")
+
+# # To override the default severity of logging
+# logger.setLevel("DEBUG")
+
+# # Use FileHandler() to log to a file
+# file_handler = logging.FileHandler("measurment_managment.log")
+# log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+# formatter = logging.Formatter(log_format)
+# file_handler.setFormatter(formatter)
+
+# # Don't forget to add the file handler
+# logger.addHandler(file_handler)
 
 
 class Action:

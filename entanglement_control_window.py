@@ -8,7 +8,7 @@
 #
 # WARNING! All changes made in this file will be lost!
 
-from PySide2 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 class EntanglementControlWindow(object):
@@ -404,18 +404,23 @@ class EntanglementControlWindow(object):
         self.verticalLayout.addLayout(self.gridLayout_4)
         self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
         self.horizontalLayout_2.setObjectName("horizontalLayout_2")
-        self.startButton = QtWidgets.QPushButton(self.centralwidget)
-        self.startButton.setObjectName("startButton")
-        self.horizontalLayout_2.addWidget(self.startButton)
-        self.clockRefMode = QtWidgets.QPushButton(self.centralwidget)
-        self.clockRefMode.setObjectName("clockRefMode")
-        self.horizontalLayout_2.addWidget(self.clockRefMode)
+        self.loadparamsButton = QtWidgets.QPushButton(self.centralwidget)
+        self.loadparamsButton.setObjectName("loadparamsButton")
+        self.horizontalLayout_2.addWidget(self.loadparamsButton)
+        self.clockrefButton = QtWidgets.QPushButton(self.centralwidget)
+        self.clockrefButton.setObjectName("clockrefButton")
+        self.horizontalLayout_2.addWidget(self.clockrefButton)
         self.clearButton = QtWidgets.QPushButton(self.centralwidget)
         self.clearButton.setObjectName("clearButton")
         self.horizontalLayout_2.addWidget(self.clearButton)
         self.saveButton = QtWidgets.QPushButton(self.centralwidget)
         self.saveButton.setObjectName("saveButton")
         self.horizontalLayout_2.addWidget(self.saveButton)
+
+        self.vsourceButton = QtWidgets.QPushButton(self.centralwidget)
+        self.vsourceButton.setObjectName("vsourceButton")
+        self.horizontalLayout_2.addWidget(self.vsourceButton)
+
         self.verticalLayout.addLayout(self.horizontalLayout_2)
         CoincidenceExample.setCentralWidget(self.centralwidget)
         self.label_2.setBuddy(self.label_2)
@@ -569,12 +574,12 @@ class EntanglementControlWindow(object):
         self.correlationBinwidth.setSuffix(
             QtWidgets.QApplication.translate("CoincidenceExample", " ps", None, -1)
         )
-        self.startButton.setText(
+        self.loadparamsButton.setText(
             QtWidgets.QApplication.translate(
                 "CoincidenceExample", "Load File Params", None, -1
             )
         )
-        self.clockRefMode.setText(
+        self.clockrefButton.setText(
             QtWidgets.QApplication.translate(
                 "CoincidenceExample", "Clock Referenced Mode", None, -1
             )
@@ -586,4 +591,10 @@ class EntanglementControlWindow(object):
         )
         self.saveButton.setText(
             QtWidgets.QApplication.translate("CoincidenceExample", "Save", None, -1)
+        )
+
+        self.vsourceButton.setText(
+            QtWidgets.QApplication.translate(
+                "CoincidenceExample", "Init Vsource", None, -1
+            )
         )
