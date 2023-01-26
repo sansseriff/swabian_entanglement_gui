@@ -274,35 +274,49 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                     # minor_cycle is the number or 'index' of this experiment period
                     hist_tag = hist_tag - (sub_period * minor_cycles)
 
-                    if tag["channel"] == data_channel_1:
-                        hist_1_tags_data[hist_1_idx] = hist_tag
-                        hist_1_idx += 1
+                    # if tag["channel"] == data_channel_1:
+                    #     hist_1_tags_data[hist_1_idx] = hist_tag
+                    #     hist_1_idx += 1
+                    #     if minor_cycle == buffer_cycle:
+                    #         # if (hist_tag > ch1_siv_start) and (hist_tag < ch1_siv_end):
+                    #         # this cuts the blue
+                    #         if (hist_tag > ch1_siv_start) and (hist_tag < ch1_siv_end):
+                    #             coinc_1[coinc_1_idx] = hist_tag
+                    #             coinc_2[coinc_2_idx] = buffer_tag_hist
+                    #             buffer_tag_hist = -200
+                    #             # buffer_tag_raw = 0
+                    #             coinc_1_idx += 1
+                    #             coinc_2_idx += 1
+                    #     else:
+                    #         # no match, overwrite buffer with current tag
+                    #         buffer_tag_hist = hist_tag
+                    #         # buffer_tag_raw = tag["time"] + test_factor
+                    #         buffer_cycle = minor_cycle
+                    if (hist_tag > ch1_siv_start) and (hist_tag < ch1_siv_end):
+                        # this cuts the blue
+                        if minor_cycle == buffer_cycle:
+                            # if the counts are from the same period
+                            # valid coincidence. add to coinc array
+                            # pass
+                            coinc_1[coinc_1_idx] = hist_tag
+                            coinc_2[coinc_2_idx] = buffer_tag_hist
+                            # maybe I need a way of ensuring that the buffer tag is from the other channel?
+                            # I'd prefer to do things in this order:
+                            # 1. Are they in the same period?
+                            # 2. Are they in the same bin?
+                            # I remember I wanted to assign each tag a cycle number
 
-                        if (hist_tag > ch1_siv_start) and (hist_tag < ch1_siv_end):
-                            # this cuts the blue
-                            if minor_cycle == buffer_cycle:
-                                # if the counts are from the same period
-                                # valid coincidence. add to coinc array
-                                # pass
-                                coinc_1[coinc_1_idx] = hist_tag
-                                coinc_2[coinc_2_idx] = buffer_tag_hist
-                                # maybe I need a way of ensuring that the buffer tag is from the other channel?
-                                # I'd prefer to do things in this order:
-                                # 1. Are they in the same period?
-                                # 2. Are they in the same bin?
-                                # I remember I wanted to assign each tag a cycle number
+                            # (buffer_tag_hist + hist_tag) / 2
 
-                                # (buffer_tag_hist + hist_tag) / 2
-
-                                buffer_tag_hist = -200
-                                buffer_tag_raw = 0
-                                coinc_1_idx += 1
-                                coinc_2_idx += 1
-                            else:
-                                # no match, overwrite buffer with current tag
-                                buffer_tag_hist = hist_tag
-                                buffer_tag_raw = tag["time"] + test_factor
-                                buffer_cycle = minor_cycle
+                            buffer_tag_hist = -200
+                            buffer_tag_raw = 0
+                            coinc_1_idx += 1
+                            coinc_2_idx += 1
+                        else:
+                            # no match, overwrite buffer with current tag
+                            buffer_tag_hist = hist_tag
+                            buffer_tag_raw = tag["time"] + test_factor
+                            buffer_cycle = minor_cycle
 
                     if tag["channel"] == data_channel_2:
                         hist_2_tags_data[hist_2_idx] = hist_tag

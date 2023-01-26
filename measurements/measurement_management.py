@@ -644,6 +644,8 @@ class Extremum(Action):
         self.counts_list = []
         self.times_list = []
         self.voltage_list = []
+
+        self.integration_results = []
         self.data_name = data_name
         self.cycle = 0
         self.fine_grain_iteration = 0
@@ -736,9 +738,11 @@ class Extremum(Action):
                 self.cycle = 1
 
             if response.get("name") == self.int_name:
+                # the integration is finished
                 logger.info(
                     f"     {self.__class__.__name__}: Finished integrate, resetting integrate"
                 )
+                self.integration_results.append(response)
                 self.event_list[1].reset()  # reset the integrate
                 self.counts_list.append(response["counts"])
                 print("counts: ", response["counts"])
@@ -775,10 +779,10 @@ class Extremum(Action):
                 logger.info(
                     f"     {self.__class__.__name__}: Updating voltage: {round(self.get_voltage(), 3)}"
                 )
+                print(f"#### Updating voltage: {round(self.get_voltage(), 3)}")
                 self.vsource.setVoltage(self.channel, round(self.get_voltage(), 3))
                 self.voltage_list.append(self.old_voltage)
                 self.prev_coinc_rate = coinc_rate
-                print("finished 1")
 
                 if (
                     self.fine_grain_mode
@@ -828,6 +832,7 @@ class Extremum(Action):
                             "direction_array": self.direction_array,
                             "voltage_list": self.voltage_list,
                         },
+                        "integration_results": self.integration_results
                     }
                     if self.save:
                         self.do_save()

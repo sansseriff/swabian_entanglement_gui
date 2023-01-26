@@ -173,7 +173,9 @@ class CoincidenceExample(QMainWindow):
         self.VSource = teledyneT3PS("10.7.0.147", port=1026)
         self.VSource.connect()
         self.VSource.enableChannel(2)
+        self.VSource.enableChannel(1)
         self.VSource.setCurrent(2, 0.20)
+        self.VSource.setCurrent(1, 0.02)
         V_init = self.VSource.getVoltage(2)
         print("VSource Initialized With Voltage: ", V_init)
         self.ui.intf_voltage.setProperty("value", V_init)
@@ -1206,7 +1208,7 @@ class CoincidenceExample(QMainWindow):
 
         # self.event_loop_action = VisibilityScanMinimize(self.VSource, self.clockAxis)
         # self.event_loop_action = SHG_Scan_Alt(self, self.VSource)  # request user input for shg power
-        self.VSource.enableChannel(1)
+        
         self.event_loop_action = SHGScanAutoPower(
             self, self.VSource
         )  # set power automatically with voltage source
