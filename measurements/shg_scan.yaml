@@ -3,4 +3,8 @@
 shg_scan:
   start_power: 1.2
   end_power: 3.5
-  steps: 20
+  steps: 4
+
+  wait_time: 45
+  minimum_counts: 600
+  maximum_counts: 20000

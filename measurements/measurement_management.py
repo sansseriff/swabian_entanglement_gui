@@ -319,6 +319,7 @@ class ValueIntegrateExtraData(Action):
         self.hist_2 = None
         self.evaluations = 0
         self.minimum_evaluations = minimum_evaluations
+        self.coincidences = 0
 
     def evaluate(self, current_time, counts, **kwargs):
         logger.debug(f"Evaluating Action: {self.__class__.__name__}")
@@ -328,16 +329,18 @@ class ValueIntegrateExtraData(Action):
             self.init_time = current_time
             # started
             logger.info(f"     {self.__class__.__name__}: Starting Integrate")
-            self.hist_1 = kwargs.get("hist_1")
-            self.hist_2 = kwargs.get("hist_2")
+            self.hist_1 = np.zeros_like(kwargs.get("hist_1"))
+            self.hist_2 = np.zeros_like(kwargs.get("hist_2"))
+
         else:
             # only add counts for iterations after the init iteration.
             # count data 'belongs' to the time bewteen the init iteration and the ending iteration
-            self.counts = self.counts + counts  # add counts
+            self.counts += counts  # add counts
             self.coincidences_hist_1.extend(kwargs.get("coincidence_array_1"))
             self.coincidences_hist_2.extend(kwargs.get("coincidence_array_2"))
             self.hist_1 += kwargs.get("hist_1")
             self.hist_2 += kwargs.get("hist_2")
+            self.coincidences += kwargs.get("coincidences")
             logger.debug(
                 f"     {self.__class__.__name__}: Adding counts. Counts: {self.counts}"
             )
@@ -356,6 +359,7 @@ class ValueIntegrateExtraData(Action):
                 "coincidences_hist_2": self.coincidences_hist_2,
                 "singles_hist_1": self.hist_1.tolist(),
                 "singles_hist_2": self.hist_2.tolist(),
+                "total_coincidences": self.coincidences,
             }
             logger.info(
                 f"     {self.__class__.__name__}: Finishing. Counts: {self.counts}, delta_time: {self.delta_time}"
@@ -370,6 +374,7 @@ class ValueIntegrateExtraData(Action):
         self.coincidences_hist_1 = []
         self.coincidences_hist_2 = []
         self.evaluations = 0
+        self.coincidences = 0
 
     def __str__(self):
         return "ValueIntegrate Action Object"
@@ -747,7 +752,6 @@ class Extremum(Action):
                 self.counts_list.append(response["counts"])
                 print("counts: ", response["counts"])
                 print("times: ", response["delta_time"])
-                print()
                 self.times_list.append(response["delta_time"])
                 # print("integrate response: ", response)
                 coinc_rate = response["counts"] / response["delta_time"]
@@ -780,6 +784,7 @@ class Extremum(Action):
                     f"     {self.__class__.__name__}: Updating voltage: {round(self.get_voltage(), 3)}"
                 )
                 print(f"#### Updating voltage: {round(self.get_voltage(), 3)}")
+                print()
                 self.vsource.setVoltage(self.channel, round(self.get_voltage(), 3))
                 self.voltage_list.append(self.old_voltage)
                 self.prev_coinc_rate = coinc_rate
@@ -832,7 +837,7 @@ class Extremum(Action):
                             "direction_array": self.direction_array,
                             "voltage_list": self.voltage_list,
                         },
-                        "integration_results": self.integration_results
+                        "integration_results": self.integration_results,
                     }
                     if self.save:
                         self.do_save()

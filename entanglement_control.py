@@ -351,7 +351,15 @@ class CoincidenceExample(QMainWindow):
         self.coincAxis.clear()
 
         if self.ent:
-            clocks, pclocks, hist1, hist2, coinc1, coinc2 = self.PLL.getData()
+            (
+                clocks,
+                pclocks,
+                hist1,
+                hist2,
+                coinc1,
+                coinc2,
+                coincidence,
+            ) = self.PLL.getData()
 
             try:
                 max = numpy.max(hist1)
@@ -1208,7 +1216,7 @@ class CoincidenceExample(QMainWindow):
 
         # self.event_loop_action = VisibilityScanMinimize(self.VSource, self.clockAxis)
         # self.event_loop_action = SHG_Scan_Alt(self, self.VSource)  # request user input for shg power
-        
+
         self.event_loop_action = SHGScanAutoPower(
             self, self.VSource
         )  # set power automatically with voltage source
@@ -1349,7 +1357,15 @@ class CoincidenceExample(QMainWindow):
                 else:
                     self.correlationAxis.set_yscale("linear")
                 ##############
-                clocks, pclocks, hist1, hist2, coinc1, coinc2 = self.PLL.getData()
+                (
+                    clocks,
+                    pclocks,
+                    hist1,
+                    hist2,
+                    coinc1,
+                    coinc2,
+                    coincidence,
+                ) = self.PLL.getData()
                 clocks_div = clocks[:: self.divider]
                 pclocks_div = pclocks[:: self.divider]
                 x_clocks = numpy.linspace(0, 1, len(clocks_div))
@@ -1400,6 +1416,7 @@ class CoincidenceExample(QMainWindow):
                         coincidence_array_2=coinc2.tolist(),
                         hist_1=histogram1,
                         hist_2=histogram2,
+                        coincidences=coincidence,  # count of all period-level coincidences
                     )
 
             else:
@@ -1495,13 +1512,6 @@ if __name__ == "__main__":
 
     # Don't forget to add the file handler
     logger.addHandler(file_handler)
-
-
-
-
-
-
-
 
     # For TimeTagger X (rack mount version) only HighResB is supported
     tagger = createTimeTagger(resolution=Resolution.HighResB)

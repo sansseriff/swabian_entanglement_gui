@@ -50,6 +50,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         self.hist_2_idx = 0
         self.coinc_1_idx = 0
         self.coinc_2_idx = 0
+        self.coincidence = 0
 
         self.error = 0
         self.old_clock_start = 0
@@ -92,16 +93,25 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 coinc_1 = self.coinc_1[: self.coinc_1_idx].copy()
                 coinc_2 = self.coinc_2[: self.coinc_2_idx].copy()
                 self.old_clock_start = self.clock_data[0]
+                coincidence = self.coincidence
 
-                # expiremental ####
                 self.clock_idx = 0
                 self.hist_1_idx = 0
                 self.hist_2_idx = 0
                 self.coinc_1_idx = 0
                 self.coinc_2_idx = 0
-                ###################
+                self.coincidence = 0
+
                 self._unlock()
-                return clocks, pclocks, hist_1_tags, hist_2_tags, coinc_1, coinc_2
+                return (
+                    clocks,
+                    pclocks,
+                    hist_1_tags,
+                    hist_2_tags,
+                    coinc_1,
+                    coinc_2,
+                    coincidence,
+                )
             else:
                 print("nope")
             self._unlock()
@@ -158,6 +168,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         coinc_2_idx,
         q,
         cycle,
+        coincidence,
     ):
 
         """
@@ -170,12 +181,6 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         """
 
         error = 0
-        # ch1_siv_start = 90  # - 20  # blue
-        # ch1_siv_end = 158  # + 20  # blue
-
-        # ch2_siv_start = 80  # - 20  # red
-        # ch2_siv_end = 148  # + 20  # red
-
         ch1_siv_start = 80  # - 20  # blue
         ch1_siv_end = 160  # + 20  # blue
 
@@ -277,27 +282,15 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                     if tag["channel"] == data_channel_1:
                         hist_1_tags_data[hist_1_idx] = hist_tag
                         hist_1_idx += 1
-                        #     if minor_cycle == buffer_cycle:
-                        #         # if (hist_tag > ch1_siv_start) and (hist_tag < ch1_siv_end):
-                        #         # this cuts the blue
-                        #         if (hist_tag > ch1_siv_start) and (hist_tag < ch1_siv_end):
-                        #             coinc_1[coinc_1_idx] = hist_tag
-                        #             coinc_2[coinc_2_idx] = buffer_tag_hist
-                        #             buffer_tag_hist = -200
-                        #             # buffer_tag_raw = 0
-                        #             coinc_1_idx += 1
-                        #             coinc_2_idx += 1
-                        #     else:
-                        #         # no match, overwrite buffer with current tag
-                        #         buffer_tag_hist = hist_tag
-                        #         # buffer_tag_raw = tag["time"] + test_factor
-                        #         buffer_cycle = minor_cycle
                         if (hist_tag > ch1_siv_start) and (hist_tag < ch1_siv_end):
+                            coincidence += 1
+                            # the periods match. Do the bins match?
                             # this cuts the blue
                             if minor_cycle == buffer_cycle:
                                 coinc_1[coinc_1_idx] = hist_tag
                                 coinc_2[coinc_2_idx] = buffer_tag_hist
                                 buffer_tag_hist = -200
+                                # buffer_tag_raw = 0
                                 coinc_1_idx += 1
                                 coinc_2_idx += 1
                             else:
@@ -310,7 +303,9 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                         hist_2_idx += 1
 
                         if (hist_tag > ch2_siv_start) and (hist_tag < ch2_siv_end):
+                            coincidence += 1
                             # this cuts the red. Red is the 2nd member of the coincidence
+                            # the periods match. Do the bins match?
                             if minor_cycle == buffer_cycle:
                                 # if the counts are from the same period
                                 coinc_2[coinc_1_idx] = hist_tag
@@ -346,6 +341,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             error,
             q,
             cycle,
+            coincidence,
         )
 
     def process(self, incoming_tags, begin_time, end_time):
@@ -384,6 +380,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             self.error,
             self.i,
             self.cycle,
+            self.coincidence,
         ) = CustomPLLHistogram.fast_process(
             incoming_tags,
             self.clock_data,
@@ -412,6 +409,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             self.coinc_2_idx,
             self.i,
             self.cycle,
+            self.coincidence,
         )
 
 

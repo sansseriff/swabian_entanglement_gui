@@ -130,13 +130,15 @@ class MinMaxSHGAutoPower(Action):
         start_max_voltage,
         shg_power,
         voltage_source,
+        params,
     ):
         super().__init__()
 
         self.add_action(SetPower(shg_power, voltage_source, 1))
         self.add_action(Wait(1))
         self.add_action(SetVoltage(start_min_voltage.get_val(), voltage_source, 2))
-        self.add_action(Wait(10))  # 30
+        print(f"Wait time: {params["wait_time"]}")
+        self.add_action(Wait(params["wait_time"]))  # 30
         minimum = Extremum(
             "min",
             0.5,
@@ -149,13 +151,14 @@ class MinMaxSHGAutoPower(Action):
             steps=5,
             int_type="custom",
         )
-        minimum.add_action(ValueIntegrateExtraData(50))  # 500
+        minimum.add_action(ValueIntegrateExtraData(params["minimum_counts"]))  # 500
+        print(f"Minimum counts: {params["minimum_counts"]}")
         minimum.init_custom_integration()
         minimum.update_start_iteration(3)
         self.add_action(minimum)
 
         self.add_action(SetVoltage(start_max_voltage.get_val(), voltage_source, 2))
-        self.add_action(Wait(10))  # 30
+        self.add_action(Wait(params["wait_time"]))  # 30
         maximum = Extremum(
             "max",
             0.25,
@@ -168,7 +171,8 @@ class MinMaxSHGAutoPower(Action):
             steps=5,
             int_type="custom",  # add custom integrate action
         )
-        maximum.add_action(ValueIntegrateExtraData(1000))  # 20000
+        maximum.add_action(ValueIntegrateExtraData(params["maximum_counts"]))  # 20000
+        print(f"Maximum counts: {params["maximum_counts"]}")
         maximum.init_custom_integration()
         maximum.update_start_iteration(3)
         self.add_action(maximum)
@@ -235,6 +239,7 @@ class SHGScanAutoPower(Action):
                     start_max_voltage,
                     shg_power,
                     voltage_source,
+                    params,
                 )
             )
         self.add_action(SetPower(1.0, voltage_source, 1))
