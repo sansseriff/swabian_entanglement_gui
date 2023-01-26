@@ -137,7 +137,7 @@ class MinMaxSHGAutoPower(Action):
         self.add_action(SetPower(shg_power, voltage_source, 1))
         self.add_action(Wait(1))
         self.add_action(SetVoltage(start_min_voltage.get_val(), voltage_source, 2))
-        print(f"Wait time: {params["wait_time"]}")
+        print(f"Wait time: {params['wait_time']}")
         self.add_action(Wait(params["wait_time"]))  # 30
         minimum = Extremum(
             "min",
@@ -152,7 +152,7 @@ class MinMaxSHGAutoPower(Action):
             int_type="custom",
         )
         minimum.add_action(ValueIntegrateExtraData(params["minimum_counts"]))  # 500
-        print(f"Minimum counts: {params["minimum_counts"]}")
+        print(f"Minimum counts: {params['minimum_counts']}")
         minimum.init_custom_integration()
         minimum.update_start_iteration(3)
         self.add_action(minimum)
@@ -172,7 +172,7 @@ class MinMaxSHGAutoPower(Action):
             int_type="custom",  # add custom integrate action
         )
         maximum.add_action(ValueIntegrateExtraData(params["maximum_counts"]))  # 20000
-        print(f"Maximum counts: {params["maximum_counts"]}")
+        print(f"Maximum counts: {params['maximum_counts']}")
         maximum.init_custom_integration()
         maximum.update_start_iteration(3)
         self.add_action(maximum)
