@@ -95,7 +95,7 @@ class MinMaxSHG(Action):
             steps=5,
             int_type="custom",
         )
-        minimum.add_action(ValueIntegrateExtraData(500))
+        minimum.add_action(ValueIntegrateExtraData(500, minimum_evaluations=100))
         minimum.init_custom_integration()
         minimum.update_start_iteration(3)
         self.add_action(minimum)
@@ -114,7 +114,7 @@ class MinMaxSHG(Action):
             steps=5,
             int_type="custom",  # add custom integrate action
         )
-        maximum.add_action(ValueIntegrateExtraData(20000))
+        maximum.add_action(ValueIntegrateExtraData(20000, minimum_evaluations=100))
         maximum.init_custom_integration()
         maximum.update_start_iteration(3)
         self.add_action(maximum)
@@ -151,7 +151,12 @@ class MinMaxSHGAutoPower(Action):
             steps=5,
             int_type="custom",
         )
-        minimum.add_action(ValueIntegrateExtraData(params["minimum_counts"]))  # 500
+        minimum.add_action(
+            ValueIntegrateExtraData(
+                params["minimum_counts"],
+                minimum_evaluations=params["minimum_integrate_evaluations"],
+            )
+        )  # 500
         print(f"Minimum counts: {params['minimum_counts']}")
         minimum.init_custom_integration()
         minimum.update_start_iteration(3)
@@ -171,7 +176,12 @@ class MinMaxSHGAutoPower(Action):
             steps=5,
             int_type="custom",  # add custom integrate action
         )
-        maximum.add_action(ValueIntegrateExtraData(params["maximum_counts"]))  # 20000
+        maximum.add_action(
+            ValueIntegrateExtraData(
+                params["maximum_counts"],
+                minimum_evaluations=params["minimum_integrate_evaluations"],
+            )
+        )  # 20000
         print(f"Maximum counts: {params['maximum_counts']}")
         maximum.init_custom_integration()
         maximum.update_start_iteration(3)

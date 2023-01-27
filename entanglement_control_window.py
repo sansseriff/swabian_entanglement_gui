@@ -404,12 +404,19 @@ class EntanglementControlWindow(object):
         self.verticalLayout.addLayout(self.gridLayout_4)
         self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
         self.horizontalLayout_2.setObjectName("horizontalLayout_2")
+
         self.loadparamsButton = QtWidgets.QPushButton(self.centralwidget)
         self.loadparamsButton.setObjectName("loadparamsButton")
         self.horizontalLayout_2.addWidget(self.loadparamsButton)
+
         self.clockrefButton = QtWidgets.QPushButton(self.centralwidget)
         self.clockrefButton.setObjectName("clockrefButton")
         self.horizontalLayout_2.addWidget(self.clockrefButton)
+
+        self.changePowerButton = QtWidgets.QPushButton(self.centralwidget)
+        self.changePowerButton.setObjectName("changePowerButton")
+        self.horizontalLayout_2.addWidget(self.changePowerButton)
+
         self.clearButton = QtWidgets.QPushButton(self.centralwidget)
         self.clearButton.setObjectName("clearButton")
         self.horizontalLayout_2.addWidget(self.clearButton)
@@ -579,6 +586,13 @@ class EntanglementControlWindow(object):
                 "CoincidenceExample", "Load File Params", None, -1
             )
         )
+
+        self.changePowerButton.setText(
+            QtWidgets.QApplication.translate(
+                "CoincidenceExample", "Change Pump Power", None, -1
+            )
+        )
+
         self.clockrefButton.setText(
             QtWidgets.QApplication.translate(
                 "CoincidenceExample", "Clock Referenced Mode", None, -1

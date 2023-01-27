@@ -187,8 +187,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         ch2_siv_start = 80  # - 20  # red
         ch2_siv_end = 160  # + 20  # red
 
-        buffer_tag_raw = 0
-        buffer_tag_hist = 0
+        center_buffer_tag_hist = 0
+        center_buffer_cycle = 0
         buffer_cycle = 0
         freq = 1 / period
         # test_factor = 1000000000000000000
@@ -279,45 +279,52 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                     # minor_cycle is the number or 'index' of this experiment period
                     hist_tag = hist_tag - (sub_period * minor_cycles)
 
+                    # look for general coincidence
+                    if minor_cycle == buffer_cycle:
+                        # it's a general coincidence
+                        coincidence += 1
+                        buffer_cycle = -200
+                    else:
+                        buffer_cycle = minor_cycle
+
                     if tag["channel"] == data_channel_1:
                         hist_1_tags_data[hist_1_idx] = hist_tag
                         hist_1_idx += 1
+
+                        # look for center-bin coincidences
                         if (hist_tag > ch1_siv_start) and (hist_tag < ch1_siv_end):
-                            coincidence += 1
-                            # the periods match. Do the bins match?
+
                             # this cuts the blue
-                            if minor_cycle == buffer_cycle:
+                            if minor_cycle == center_buffer_cycle:
                                 coinc_1[coinc_1_idx] = hist_tag
-                                coinc_2[coinc_2_idx] = buffer_tag_hist
-                                buffer_tag_hist = -200
-                                # buffer_tag_raw = 0
+                                coinc_2[coinc_2_idx] = center_buffer_tag_hist
+                                center_buffer_tag_hist = -200
+
                                 coinc_1_idx += 1
                                 coinc_2_idx += 1
                             else:
                                 # no match, overwrite buffer with current tag
-                                buffer_tag_hist = hist_tag
-                                buffer_cycle = minor_cycle
+                                center_buffer_tag_hist = hist_tag
+                                center_buffer_cycle = minor_cycle
 
                     if tag["channel"] == data_channel_2:
                         hist_2_tags_data[hist_2_idx] = hist_tag
                         hist_2_idx += 1
 
+                        # check for center bin coincidences
                         if (hist_tag > ch2_siv_start) and (hist_tag < ch2_siv_end):
-                            coincidence += 1
-                            # this cuts the red. Red is the 2nd member of the coincidence
-                            # the periods match. Do the bins match?
-                            if minor_cycle == buffer_cycle:
+                            if minor_cycle == center_buffer_cycle:
                                 # if the counts are from the same period
                                 coinc_2[coinc_1_idx] = hist_tag
-                                coinc_1[coinc_2_idx] = buffer_tag_hist
+                                coinc_1[coinc_2_idx] = center_buffer_tag_hist
+                                center_buffer_tag_hist = -200
 
-                                buffer_tag_hist = -200
                                 coinc_1_idx += 1
                                 coinc_2_idx += 1
                             else:
                                 # no match, overwrite buffer with current tag
-                                buffer_tag_hist = hist_tag
-                                buffer_cycle = minor_cycle
+                                center_buffer_tag_hist = hist_tag
+                                center_buffer_cycle = minor_cycle
 
                     # if its in the correct time window, save it in buffer.
                     # every time something gets added to the buffer you either
@@ -327,7 +334,6 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 else:
                     continue
 
-        # print("zero cycles: ", zero_cycles)
         return (
             clock0,
             period,

@@ -63,6 +63,7 @@ from awgClient import AWGClient
 from measurements.visibility_scan_minimize import VisibilityScanMinimize
 from measurements.shg_scan import TextDialog, SHG_Scan
 from measurements.shg_scan_alt import TextDialog, SHG_Scan_Alt, SHGScanAutoPower
+from measurements.pump_power_manager import PumpPowerManager
 
 import logging
 
@@ -82,6 +83,7 @@ class CoincidenceExample(QMainWindow):
         self.ui.clockrefButton.clicked.connect(self.clockRefMode)
         self.ui.clearButton.clicked.connect(self.getVisibility)
         self.ui.saveButton.clicked.connect(self.saveHistData)
+        self.ui.changePowerButton.clicked.connect(self.change_shg_power)
         # self.ui.measure_viz.clicked.connect(self.measure_viz)
         self.ui.vsourceButton.clicked.connect(self.initVsource)
         self.ui.initScan.clicked.connect(self.initVisibility)
@@ -122,6 +124,7 @@ class CoincidenceExample(QMainWindow):
         self.input_mode = False
         self.offset_a = 0
         self.offset_b = 0
+        self.vSource_initialized = False
 
         # Create the matplotlib figure with its subplots for the counter and correlation
         Colors, palette = viz.phd_style(text=-2)
@@ -179,6 +182,7 @@ class CoincidenceExample(QMainWindow):
         V_init = self.VSource.getVoltage(2)
         print("VSource Initialized With Voltage: ", V_init)
         self.ui.intf_voltage.setProperty("value", V_init)
+        self.vSource_initialized = True
 
     def reInit(self):
         # Create the TimeTagger measurements
@@ -1042,6 +1046,20 @@ class CoincidenceExample(QMainWindow):
             data1 = numpy.roll(data1, 1)
 
         return numpy.array(similarity)
+
+    def change_shg_power(self):
+        if not self.vSource_initialized:
+            self.initVsource()
+            # time.sleep(0.03)
+        power_manager = PumpPowerManager(self.VSource, 1)
+        self.user_message = [None, None]
+        self.show_dialog("Enter desired SHG power (Amps)")
+        if self.user_message[1]:
+            power = round(float(self.user_message[0]), 3)
+            if power < 4.0:
+                power_manager.change_pump_power(power)
+            else:
+                print("error power too high")
 
     def load_file_params(self):
 

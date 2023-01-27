@@ -5,6 +5,13 @@ shg_scan:
   end_power: 3.5
   steps: 20
 
-  wait_time: 45
-  minimum_counts: 600
-  maximum_counts: 20000
+  wait_time: 90
+  minimum_counts: 1200 # the minimum-extremum operation ends after this many counts collected
+  maximum_counts: 40000 # the maximum-extremum operation ends after this many counts collected
+
+  # for low count rates, the evaluation number should be way
+  # higher than 100. But for high count rates, setting a 
+  # minimum value should avoid weird rounding errors? 
+  # This means collecting extra data at high count rates where
+  # the data rate quickly exceeds the minimum/maximum count thresholds
+  minimum_integrate_evaluations: 100
