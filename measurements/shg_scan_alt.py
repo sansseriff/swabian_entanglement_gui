@@ -243,7 +243,6 @@ class SHGScanAutoPower(Action):
                 )
             )
         self.add_action(SetPower(1.0, voltage_source, 1))
-        print("Finished")
         self.enable_save("shg_scan_results.json")
 
 
