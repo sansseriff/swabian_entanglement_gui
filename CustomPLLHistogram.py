@@ -48,8 +48,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         self.clock_idx = 0
         self.hist_1_idx = 0
         self.hist_2_idx = 0
-        self.coinc_1_idx = 0
-        self.coinc_2_idx = 0
+        self.coinc_idx = 0
+        self.full_coinc_idx = 0
         self.coincidence = 0
 
         self.error = 0
@@ -90,16 +90,18 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 pclocks = self.lclock_data[: self.clock_idx].copy()
                 hist_1_tags = self.hist_1_tags_data[: self.hist_1_idx].copy()
                 hist_2_tags = self.hist_2_tags_data[: self.hist_2_idx].copy()
-                coinc_1 = self.coinc_1[: self.coinc_1_idx].copy()
-                coinc_2 = self.coinc_2[: self.coinc_2_idx].copy()
+                coinc_1 = self.coinc_1[: self.coinc_idx].copy()
+                coinc_2 = self.coinc_2[: self.coinc_idx].copy()
+                full_coinc_1 = self.full_coinc_1[: self.full_coinc_idx].copy()
+                full_coinc_2 = self.full_coinc_2[: self.full_coinc_idx].copy()
                 self.old_clock_start = self.clock_data[0]
                 coincidence = self.coincidence
 
                 self.clock_idx = 0
                 self.hist_1_idx = 0
                 self.hist_2_idx = 0
-                self.coinc_1_idx = 0
-                self.coinc_2_idx = 0
+                self.coinc_idx = 0
+                self.full_coinc_idx = 0
                 self.coincidence = 0
 
                 self._unlock()
@@ -110,6 +112,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                     hist_2_tags,
                     coinc_1,
                     coinc_2,
+                    full_coinc_1,
+                    full_coinc_2,
                     coincidence,
                 )
             else:
@@ -125,6 +129,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             (self.max_bins,), dtype=np.float64
         )  # decimal component of clock0
         self.hist_1_tags_data = np.zeros((self.max_bins,), dtype=np.float64)
+        self.full_coinc_1 = np.zeros((self.max_bins,), dtype=np.float64)
+        self.full_coinc_2 = np.zeros((self.max_bins,), dtype=np.float64)
         self.coinc_1 = np.zeros((self.max_bins,), dtype=np.float64)
         self.coinc_2 = np.zeros((self.max_bins,), dtype=np.float64)
         self.hist_2_tags_data = np.zeros((self.max_bins,), dtype=np.float64)
@@ -150,6 +156,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         hist_2_tags_data,
         coinc_1,
         coinc_2,
+        full_coinc_1,
+        full_coinc_2,
         data_channel_1,
         data_channel_2,
         clock_channel,
@@ -164,8 +172,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         clock_idx,
         hist_1_idx,
         hist_2_idx,
-        coinc_1_idx,
-        coinc_2_idx,
+        coinc_idx,
+        full_coinc_idx,
         q,
         cycle,
         coincidence,
@@ -181,20 +189,20 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         """
 
         error = 0
-        ch1_siv_start = 80  # - 20  # blue
-        ch1_siv_end = 160  # + 20  # blue
+        ch1_siv_start = 90  # - 20  # blue
+        ch1_siv_end = 150  # + 20  # blue
 
-        ch2_siv_start = 80  # - 20  # red
-        ch2_siv_end = 160  # + 20  # red
+        ch2_siv_start = 90  # - 20  # red
+        ch2_siv_end = 150  # + 20  # red
 
         center_buffer_tag_hist = 0
         center_buffer_cycle = 0
+        general_buffer_tag_hist = 0
+        general_buffer_cycle = 0
         buffer_cycle = 0
         freq = 1 / period
-        # test_factor = 1000000000000000000
         test_factor = 0
 
-        this = np.ones(5) * 4.9345
         if init:
             print(
                 "Init PLL with clock channel ",
@@ -219,17 +227,15 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             init = 0
             clock0 = -1
             clock0_dec = -0.1
-            print("[READY] Finished FastProcess Initialization")
             clock_idx = 0
             hist_1_idx = 0
             hist_2_idx = 0
-            coinc_1_idx = 0
-            coinc_2_idx = 0
+            coinc_idx = 0
+            full_coinc_idx = 0
+            print("[READY] Finished FastProcess Initialization")
 
         for i, tag in enumerate(tags):
             q = q + 1
-            # if i == 32:
-            #     print("period: ", period)
             if tag["channel"] == clock_channel:
                 current_clock = tag["time"] + test_factor
                 clock_data[clock_idx] = current_clock
@@ -238,7 +244,6 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                     clock0 = np.int64(current_clock - period)
                     clock0_dec = 0.0
 
-                # arg_int = np.int64(current_clock - clock0) #should both be int64s
                 arg_int = current_clock - clock0  # both int64
                 arg = arg_int - clock0_dec
                 arg = (arg - period) * 2 * math.pi  # now its a float
@@ -279,7 +284,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                     # minor_cycle is the number or 'index' of this experiment period
                     hist_tag = hist_tag - (sub_period * minor_cycles)
 
-                    # look for general coincidence
+                    # look for general coincidence.
+                    # This does not tell you which is channel 1 and which is channel 2
                     if minor_cycle == buffer_cycle:
                         # it's a general coincidence
                         coincidence += 1
@@ -291,17 +297,29 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                         hist_1_tags_data[hist_1_idx] = hist_tag
                         hist_1_idx += 1
 
+                        # look for general coincidences
+                        if minor_cycle == general_buffer_cycle:
+                            full_coinc_1[full_coinc_idx] = hist_tag
+                            full_coinc_2[full_coinc_idx] = general_buffer_tag_hist
+                            general_buffer_tag_hist = -200
+
+                            full_coinc_idx += 1
+
+                        else:
+                            # no match, overwrite buffer with current tag
+                            general_buffer_tag_hist = hist_tag
+                            general_buffer_cycle = minor_cycle
+
                         # look for center-bin coincidences
                         if (hist_tag > ch1_siv_start) and (hist_tag < ch1_siv_end):
 
                             # this cuts the blue
                             if minor_cycle == center_buffer_cycle:
-                                coinc_1[coinc_1_idx] = hist_tag
-                                coinc_2[coinc_2_idx] = center_buffer_tag_hist
+                                coinc_1[coinc_idx] = hist_tag
+                                coinc_2[coinc_idx] = center_buffer_tag_hist
                                 center_buffer_tag_hist = -200
 
-                                coinc_1_idx += 1
-                                coinc_2_idx += 1
+                                coinc_idx += 1
                             else:
                                 # no match, overwrite buffer with current tag
                                 center_buffer_tag_hist = hist_tag
@@ -311,16 +329,28 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                         hist_2_tags_data[hist_2_idx] = hist_tag
                         hist_2_idx += 1
 
+                        # look for general coincidences
+                        if minor_cycle == general_buffer_cycle:
+                            full_coinc_2[full_coinc_idx] = hist_tag
+                            full_coinc_1[full_coinc_idx] = general_buffer_tag_hist
+                            general_buffer_tag_hist = -200
+
+                            full_coinc_idx += 1
+
+                        else:
+                            # no match, overwrite buffer with current tag
+                            general_buffer_tag_hist = hist_tag
+                            general_buffer_cycle = minor_cycle
+
                         # check for center bin coincidences
                         if (hist_tag > ch2_siv_start) and (hist_tag < ch2_siv_end):
                             if minor_cycle == center_buffer_cycle:
                                 # if the counts are from the same period
-                                coinc_2[coinc_1_idx] = hist_tag
-                                coinc_1[coinc_2_idx] = center_buffer_tag_hist
+                                coinc_2[coinc_idx] = hist_tag
+                                coinc_1[coinc_idx] = center_buffer_tag_hist
                                 center_buffer_tag_hist = -200
 
-                                coinc_1_idx += 1
-                                coinc_2_idx += 1
+                                coinc_idx += 1
                             else:
                                 # no match, overwrite buffer with current tag
                                 center_buffer_tag_hist = hist_tag
@@ -342,8 +372,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             clock_idx,
             hist_1_idx,
             hist_2_idx,
-            coinc_1_idx,
-            coinc_2_idx,
+            coinc_idx,
+            full_coinc_idx,
             error,
             q,
             cycle,
@@ -381,8 +411,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             self.clock_idx,
             self.hist_1_idx,
             self.hist_2_idx,
-            self.coinc_1_idx,
-            self.coinc_2_idx,
+            self.coinc_idx,
+            self.full_coinc_idx,
             self.error,
             self.i,
             self.cycle,
@@ -396,6 +426,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             self.hist_2_tags_data,
             self.coinc_1,
             self.coinc_2,
+            self.full_coinc_1,
+            self.full_coinc_2,
             self.data_channel_1,
             self.data_channel_2,
             self.clock_channel,
@@ -407,12 +439,11 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             self.prop,
             self.phase,
             self.mult,
-            # expiremental
             self.clock_idx,
             self.hist_1_idx,
             self.hist_2_idx,
-            self.coinc_1_idx,
-            self.coinc_2_idx,
+            self.coinc_idx,
+            self.full_coinc_idx,
             self.i,
             self.cycle,
             self.coincidence,

@@ -362,6 +362,8 @@ class CoincidenceExample(QMainWindow):
                 hist2,
                 coinc1,
                 coinc2,
+                full_coinc_1,
+                full_coicc_2,
                 coincidence,
             ) = self.PLL.getData()
 
@@ -1382,6 +1384,8 @@ class CoincidenceExample(QMainWindow):
                     hist2,
                     coinc1,
                     coinc2,
+                    full_coinc_1,
+                    full_coinc_2,
                     coincidence,
                 ) = self.PLL.getData()
                 clocks_div = clocks[:: self.divider]
@@ -1434,6 +1438,8 @@ class CoincidenceExample(QMainWindow):
                         coincidence_array_2=coinc2.tolist(),
                         hist_1=histogram1,
                         hist_2=histogram2,
+                        full_coinc_1=full_coinc_1.tolist(),
+                        full_coinc_2=full_coinc_2.tolist(),
                         coincidences=coincidence,  # count of all period-level coincidences
                     )
 
@@ -1520,7 +1526,7 @@ if __name__ == "__main__":
     logger = logging.getLogger("measure")
 
     # To override the default severity of logging
-    logger.setLevel("DEBUG")
+    logger.setLevel("INFO")
 
     # Use FileHandler() to log to a file
     file_handler = logging.FileHandler("measurment_managment.log")

@@ -21,13 +21,13 @@ Channels:
 
   ChC:
     channel: 9
-    trigger: -0.018
+    trigger: -0.060
     delay: 50
     dead_time: 0
 
   ChD:
     channel: 9
-    trigger: -0.018 # should be the same as channel C for timetagger X!!
+    trigger: -0.060 # should be the same as channel C for timetagger X!!
     delay: 50
     dead_time: 0
 

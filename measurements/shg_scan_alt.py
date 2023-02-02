@@ -148,7 +148,7 @@ class MinMaxSHGAutoPower(Action):
             start_min_voltage,
             fine_grain_mode=True,
             low_res_steps=0,
-            steps=5,
+            steps=params["integration_steps"],
             int_type="custom",
         )
         minimum.add_action(
@@ -173,7 +173,7 @@ class MinMaxSHGAutoPower(Action):
             start_max_voltage,
             fine_grain_mode=True,
             low_res_steps=0,
-            steps=5,
+            steps=params["integration_steps"],
             int_type="custom",  # add custom integrate action
         )
         maximum.add_action(
@@ -253,7 +253,7 @@ class SHGScanAutoPower(Action):
                 )
             )
         self.add_action(SetPower(1.0, voltage_source, 1))
-        self.enable_save("shg_scan_results.json")
+        self.enable_save(params["output_file_name"])
 
 
 # if __name__ == "__main__":

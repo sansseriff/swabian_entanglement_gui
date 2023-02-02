@@ -232,6 +232,9 @@ class Wait(Action):
     def __str__(self):
         return "Wait Action Object"
 
+    def reset(self):
+        self.init_time = -1
+
 
 class Integrate(Action):
     def __init__(self, int_time):
@@ -315,8 +318,12 @@ class ValueIntegrateExtraData(Action):
         self.counts = 0
         self.coincidences_hist_1 = []
         self.coincidences_hist_2 = []
+        self.full_coinc_1 = []
+        self.full_coinc_2 = []
         self.hist_1 = None
         self.hist_2 = None
+        self.full_coinc_1 = None
+        self.full_coinc_2 = None
         self.evaluations = 0
         self.minimum_evaluations = minimum_evaluations
         self.coincidences = 0
@@ -338,8 +345,12 @@ class ValueIntegrateExtraData(Action):
             self.counts += counts  # add counts
             self.coincidences_hist_1.extend(kwargs.get("coincidence_array_1"))
             self.coincidences_hist_2.extend(kwargs.get("coincidence_array_2"))
+            self.full_coinc_1.extend(kwargs.get("full_coinc_1"))
+            self.full_coinc_2.extend(kwargs.get("full_coinc_2"))
+
             self.hist_1 += kwargs.get("hist_1")
             self.hist_2 += kwargs.get("hist_2")
+
             self.coincidences += kwargs.get("coincidences")
             logger.debug(
                 f"     {self.__class__.__name__}: Adding counts. Counts: {self.counts}"
@@ -357,6 +368,8 @@ class ValueIntegrateExtraData(Action):
                 "delta_time": self.delta_time,
                 "coincidences_hist_1": self.coincidences_hist_1,
                 "coincidences_hist_2": self.coincidences_hist_2,
+                "full_coinc_1": self.full_coinc_1,
+                "full_coinc_2": self.full_coinc_2,
                 "singles_hist_1": self.hist_1.tolist(),
                 "singles_hist_2": self.hist_2.tolist(),
                 "total_coincidences": self.coincidences,
@@ -748,6 +761,7 @@ class Extremum(Action):
                     f"     {self.__class__.__name__}: Finished integrate, resetting integrate"
                 )
                 self.integration_results.append(response)
+                self.event_list[0].reset()
                 self.event_list[1].reset()  # reset the integrate
                 self.counts_list.append(response["counts"])
                 print("counts: ", response["counts"])
@@ -816,7 +830,9 @@ class Extremum(Action):
                         ]
 
                 # stop minimization after 2nd fine grain iteration
-                logger.info(f"     {self.__class__.__name__}: Before Question")
+                logger.info(
+                    f"     {self.__class__.__name__}: Finishing step {len(self.direction_list)} of {self.steps}"
+                )
                 if (
                     len(self.direction_list) > self.steps
                     and self.fine_grain_iteration == 3
