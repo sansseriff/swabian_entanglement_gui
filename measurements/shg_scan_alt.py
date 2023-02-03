@@ -136,7 +136,7 @@ class MinMaxSHGAutoPower(Action):
 
         self.add_action(SetPower(shg_power, voltage_source, 1))
         self.add_action(Wait(1))
-        self.add_action(SetVoltage(start_min_voltage.get_val(), voltage_source, 2))
+        self.add_action(SetVoltage(start_min_voltage, voltage_source, 2))
         print(f"Wait time: {params['wait_time']}")
         self.add_action(Wait(params["wait_time"]))  # 30
         minimum = Extremum(
@@ -162,7 +162,7 @@ class MinMaxSHGAutoPower(Action):
         minimum.update_start_iteration(3)
         self.add_action(minimum)
 
-        self.add_action(SetVoltage(start_max_voltage.get_val(), voltage_source, 2))
+        self.add_action(SetVoltage(start_max_voltage, voltage_source, 2))
         self.add_action(Wait(params["wait_time"]))  # 30
         maximum = Extremum(
             "max",
@@ -237,7 +237,7 @@ class SHGScanAutoPower(Action):
         ).tolist()
 
         shg_powers = [round(power, 3) for power in shg_powers]
-        # a store is like a mutable persistent value that can be used and updated across actions.
+        # a store is a mutable persistent value that can be used and updated across actions.
         start_min_voltage = Store(voltage=2.58)
         start_max_voltage = Store(voltage=1.58)
 

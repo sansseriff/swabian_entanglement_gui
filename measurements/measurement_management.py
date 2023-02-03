@@ -101,12 +101,21 @@ class Action:
         return results
 
     def do_save(self):
+        print("Starting Save")
         with open(self.save_name, "w") as file:
             file.write(json.dumps(self.final_state))
+        print("Ending Save")
 
     def enable_save(self, save_name="output_file.json"):
         self.save_name = save_name
         self.save = True
+
+    def current_value(self, value):
+        if (type(value) is int) or (type(value) is float):
+            return value
+        if type(value) is Store:
+            assert (type(value.get_val()) is int) or (type(value.get_val()) is float)
+            return value.get_val()
 
     def __str__(self):
         return "Action Object"
@@ -146,15 +155,16 @@ class SetVoltage(Action):
 
     def evaluate(self, current_time, counts, **kwargs):
         logger.debug(f"Evaluating Action: {self.__class__.__name__}")
-        self.vsource.setVoltage(self.channel, round(self.voltage, 3))
-        print("####### setting voltage to", round(self.voltage, 3))
+        current_voltage = self.current_value(self.voltage)  # if self.voltage is a Store
+        self.vsource.setVoltage(self.channel, round(current_voltage, 3))
+        print("####### setting voltage to", round(current_voltage, 3))
         logger.info(
-            f"     {self.__class__.__name__}: setting voltage to: {round(self.voltage, 3)}"
+            f"     {self.__class__.__name__}: setting voltage to: {round(current_voltage, 3)}"
         )
         self.final_state = {
             "state": "finished",
             "name": self.__class__.__name__,
-            "voltage": self.voltage,
+            "voltage": current_voltage,
         }
         return self.final_state
 
@@ -218,7 +228,7 @@ class Wait(Action):
             self.init_time = time.time()
         if (current_time - self.init_time) > self.wait_time:
             logger.info(
-                f"     {self.__class__.__name__}: Finishing. Time Waited: {current_time - self.init_time}"
+                f"     {self.__class__.__name__}: Finishing. Time Waited: {round(current_time - self.init_time,2)}"
             )
             self.final_state = {
                 "state": "finished",
@@ -322,8 +332,6 @@ class ValueIntegrateExtraData(Action):
         self.full_coinc_2 = []
         self.hist_1 = None
         self.hist_2 = None
-        self.full_coinc_1 = None
-        self.full_coinc_2 = None
         self.evaluations = 0
         self.minimum_evaluations = minimum_evaluations
         self.coincidences = 0
@@ -375,7 +383,7 @@ class ValueIntegrateExtraData(Action):
                 "total_coincidences": self.coincidences,
             }
             logger.info(
-                f"     {self.__class__.__name__}: Finishing. Counts: {self.counts}, delta_time: {self.delta_time}"
+                f"     {self.__class__.__name__}: Finishing. Counts: {self.counts}, delta_time: {round(self.delta_time,2)}"
             )
             return self.final_state
         return {"state": "integrating"}
@@ -782,12 +790,17 @@ class Extremum(Action):
                         else:
                             self.direction_list.append(self.direction())
                             print("no direction change")
+                            logger.info(
+                                f"     {self.__class__.__name__}: no direction change"
+                            )
 
                     else:
                         # decreased
                         if self.extremum_type == "min":
                             self.direction_list.append(self.direction())
-                            print("no direction change")
+                            logger.info(
+                                f"     {self.__class__.__name__}: no direction change"
+                            )
                         else:
                             self.direction_list.append(self.direction.reverse())
 
@@ -834,7 +847,7 @@ class Extremum(Action):
                     f"     {self.__class__.__name__}: Finishing step {len(self.direction_list)} of {self.steps}"
                 )
                 if (
-                    len(self.direction_list) > self.steps
+                    len(self.direction_list) >= self.steps
                     and self.fine_grain_iteration == 3
                 ):
                     logger.info(
@@ -859,7 +872,7 @@ class Extremum(Action):
                         self.do_save()
                     return self.final_state
                 logger.info(
-                    f"     {self.__class__.__name__}: Working. Processing integration finished. coinc_rate: {coinc_rate}"
+                    f"     {self.__class__.__name__}: Working. Processing integration finished. coinc_rate: {round(coinc_rate,2)}"
                 )
                 return {
                     "state": "working",
@@ -1029,14 +1042,17 @@ class Direction:
         if self.direction == 1:
             self.direction = -1
             print("from 1 to -1")
+            logger.info(f"     {self.__class__.__name__}: from 1 to -1")
         else:
             self.direction = 1
             print("from -1 to 1")
+            logger.info(f"     {self.__class__.__name__}: from -1 to 1")
         return self.direction
 
     def random(self):
         self.direction = random.choice([1, -1])
         print("random: ", self.direction)
+        logger.info(f"     {self.__class__.__name__}: Random: {self.direction}")
         return self.direction
 
     def __call__(self):

@@ -1,9 +1,9 @@
 
 
 shg_scan:
-  start_power: 2.6 #1.2
+  start_power: 3.1 #1.2
   end_power: 3.0 # 3.5
-  steps: 3 # 20
+  steps: 2 # 20
 
   wait_time: 90
   integration_steps: 10 # how many voltage jumps and integrations. 
