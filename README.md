@@ -67,6 +67,8 @@ Navigate back to the program directory:
 cd <entanglement-path>
 ```
 
+To use the voltage source, you will need the SNSPD library installed, which has the Teledyne voltage source control scripts. See the [SNSPD wiki](http://10.7.0.104/git). Even if it's already installed, you will need to link it to the new `entanglement` environment. Run the script `activate_snspd.py` to do this linking. 
+
 With the entanglement environment still activated, run the program with:
 ```shell
 python entanglement_control.py
@@ -89,3 +91,5 @@ This loads the file params, connects to the voltage source, and runs the PLL imm
 - The button for Clock Referenced Mode engages the the software defined PLL. After pressing this, select 'Zoom to Peak' to scan in time for the entangled photon pairs coincidence peak. This button should also center the largest time bin in the center of the histogram on the lower left. Note that it works better if the phase of the control interferometer is set so that the center bin has maximized count rate. 
 
 - Some fields in the gui may not be used, like the saveName dialogue. You can hook into these gui features by customizing the code if you wish. (I often rename buttons in ```entanglement_control_window.py``` and re-assign them to point to different functions.)
+
+- Remember to deactivate the environment if you are no longer using the program (or just close the terminal)

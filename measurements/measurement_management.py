@@ -6,6 +6,7 @@ import random
 from dataclasses import dataclass
 from .pump_power_manager import PumpPowerManager
 import logging
+import orjson
 
 """
 The action framework is used to build and specify measurements in a composable and modular fashion so that they
@@ -18,37 +19,7 @@ or actions can be customized to do specific things
 Andrew Mueller 2022
 """
 
-# logger = logging.getLogger("ent")
-
-# # Create handlers
-# c_handler = logging.StreamHandler()
-# f_handler = logging.FileHandler("app.log")
-# c_handler.setLevel(logging.DEBUG)
-# f_handler.setLevel(logging.DEBUG)
-
-# # Create formatters and add it to handlers
-# c_format = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-# f_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-# c_handler.setFormatter(c_format)
-# f_handler.setFormatter(f_format)
-# # Add handlers to the logger
-# logger.addHandler(c_handler)
-# logger.addHandler(f_handler)
-
-
 logger = logging.getLogger("measure")
-
-# # To override the default severity of logging
-# logger.setLevel("DEBUG")
-
-# # Use FileHandler() to log to a file
-# file_handler = logging.FileHandler("measurment_managment.log")
-# log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-# formatter = logging.Formatter(log_format)
-# file_handler.setFormatter(formatter)
-
-# # Don't forget to add the file handler
-# logger.addHandler(file_handler)
 
 
 class Action:
@@ -102,8 +73,10 @@ class Action:
 
     def do_save(self):
         print("Starting Save")
-        with open(self.save_name, "w") as file:
-            file.write(json.dumps(self.final_state))
+        # with open(self.save_name, "w") as file:
+        #     file.write(json.dumps(self.final_state))
+        with open("example.json", "wb") as file:
+            file.write(orjson.dumps(self.final_state))
         print("Ending Save")
 
     def enable_save(self, save_name="output_file.json"):
@@ -355,11 +328,17 @@ class ValueIntegrateExtraData(Action):
             self.coincidences_hist_2.extend(kwargs.get("coincidence_array_2"))
             self.full_coinc_1.extend(kwargs.get("full_coinc_1"))
             self.full_coinc_2.extend(kwargs.get("full_coinc_2"))
+            print("Length of full_coinc_1: ", len(self.full_coinc_1))
+            print("Length of coincidences_hist_1: ", len(self.coincidences_hist_1))
+            print("Length of full_coinc_1: ", len(self.full_coinc_2))
+            print("Length of coincidences_hist_1: ", len(self.coincidences_hist_2))
 
             self.hist_1 += kwargs.get("hist_1")
             self.hist_2 += kwargs.get("hist_2")
 
             self.coincidences += kwargs.get("coincidences")
+            print("coincidences: ", self.coincidences)
+            print()
             logger.debug(
                 f"     {self.__class__.__name__}: Adding counts. Counts: {self.counts}"
             )
@@ -394,6 +373,8 @@ class ValueIntegrateExtraData(Action):
         self.counts = 0
         self.coincidences_hist_1 = []
         self.coincidences_hist_2 = []
+        self.full_coinc_1 = []
+        self.full_coinc_2 = []
         self.evaluations = 0
         self.coincidences = 0
 

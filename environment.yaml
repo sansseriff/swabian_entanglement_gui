@@ -2,7 +2,7 @@ name: entanglement
 channels:
   - conda-forge
 dependencies:
-  - python=3.7
+  - python=3.9
   - pyyaml
   - conda-forge::numpy
   - conda-forge::pyside2
