@@ -60,10 +60,9 @@ class PumpPowerManager:
                 "expected_amps": 0,
                 "voltage_sent": 0,
             }
-        # ratio = percentage / 100
-        # voltage = ratio * self.max
 
-        voltage = np.interp(power, self.amperage_vals, self.voltage_vals)
+        voltage = float(np.interp(power, self.amperage_vals, self.voltage_vals))
+        # you need the float to convert from np.float64
 
         print(f"Sending voltage {round(voltage,2)}")
         print(f"requested SHG amperage {power}")

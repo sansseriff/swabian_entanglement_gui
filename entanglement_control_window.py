@@ -420,9 +420,9 @@ class EntanglementControlWindow(object):
         self.clearButton = QtWidgets.QPushButton(self.centralwidget)
         self.clearButton.setObjectName("clearButton")
         self.horizontalLayout_2.addWidget(self.clearButton)
-        self.saveButton = QtWidgets.QPushButton(self.centralwidget)
-        self.saveButton.setObjectName("saveButton")
-        self.horizontalLayout_2.addWidget(self.saveButton)
+        self.fastMinimumButton = QtWidgets.QPushButton(self.centralwidget)
+        self.fastMinimumButton.setObjectName("fastMinimumButton")
+        self.horizontalLayout_2.addWidget(self.fastMinimumButton)
 
         self.vsourceButton = QtWidgets.QPushButton(self.centralwidget)
         self.vsourceButton.setObjectName("vsourceButton")
@@ -603,8 +603,10 @@ class EntanglementControlWindow(object):
                 "CoincidenceExample", "Zoom In To Peak", None, -1
             )
         )
-        self.saveButton.setText(
-            QtWidgets.QApplication.translate("CoincidenceExample", "Save", None, -1)
+        self.fastMinimumButton.setText(
+            QtWidgets.QApplication.translate(
+                "CoincidenceExample", "Fast Minimum", None, -1
+            )
         )
 
         self.vsourceButton.setText(

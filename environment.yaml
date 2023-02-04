@@ -9,3 +9,5 @@ dependencies:
   - conda-forge::matplotlib
   - numba
   - conda-forge::orjson
+  - conda-forge::pyvisa
+  - conda-forge::pyvisa-py

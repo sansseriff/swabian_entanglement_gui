@@ -103,6 +103,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 self.coinc_idx = 0
                 self.full_coinc_idx = 0
                 self.coincidence = 0
+                self.i = 0
 
                 self._unlock()
                 return (
@@ -178,7 +179,6 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         cycle,
         coincidence,
     ):
-
         """
         A precompiled version of the histogram algorithm for better performance
         nopython=True: Only a subset of the python syntax is supported.
@@ -234,8 +234,12 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             full_coinc_idx = 0
             print("[READY] Finished FastProcess Initialization")
 
+        if len(tags) > 10000000:
+            print("Danger: More than 10 million tags per iteration")
         for i, tag in enumerate(tags):
             q = q + 1
+            if q > 10000000:
+                print("Danger: Buffer half full. ")
             if tag["channel"] == clock_channel:
                 current_clock = tag["time"] + test_factor
                 clock_data[clock_idx] = current_clock
@@ -312,7 +316,6 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
 
                         # look for center-bin coincidences
                         if (hist_tag > ch1_siv_start) and (hist_tag < ch1_siv_end):
-
                             # this cuts the blue
                             if minor_cycle == center_buffer_cycle:
                                 coinc_1[coinc_idx] = hist_tag
@@ -455,7 +458,6 @@ CHAN_START = 1
 CHAN_STOP = 2
 
 if __name__ == "__main__":
-
     print(
         """Custom Measurement example
 

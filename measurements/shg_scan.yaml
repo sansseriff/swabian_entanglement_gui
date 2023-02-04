@@ -1,12 +1,13 @@
 
 
 shg_scan:
-  start_power: 3.1 #1.2
+  start_power: 1.2 #1.2
   end_power: 3.0 # 3.5
-  steps: 2 # 20
-
-  wait_time: 90
+  steps: 20 # 20
+  wait_time: 90 # 90
   integration_steps: 10 # how many voltage jumps and integrations. 
+
+
   minimum_counts: 600 # 1200 # the minimum-extremum operation ends after this many counts collected
   maximum_counts: 20000 # 40000 # the maximum-extremum operation ends after this many counts collected
 
@@ -16,4 +17,9 @@ shg_scan:
   # This means collecting extra data at high count rates where
   # the data rate quickly exceeds the minimum/maximum count thresholds
   minimum_integrate_evaluations: 10
-  output_file_name: "shg_scan_results_small_test.json"
+  output_file_name: "shg_scan_results_night_2.2.2022.json"
+
+
+# channel 1 snspd voltage: 0.196
+# channel 2 snspd voltage: 0.325
+

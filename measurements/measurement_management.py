@@ -46,7 +46,6 @@ class Action:
         while True:
             response = self.event_list[0].evaluate(current_time, counts, **kwargs)
             responses.append(response)
-
             if response["state"] != "finished":
                 break
             else:
@@ -71,11 +70,25 @@ class Action:
         # to be overridden by child classes
         return results
 
+    def search(self, a_dict, search_type):
+        # this is useful for finding types that orjson cannot serialize
+        for key, value in a_dict.items():
+            if type(value) is search_type:
+                print(f"found {str(search_type)} with key: {key}")
+            if type(value) is dict:
+                self.search(value, search_type)
+            if type(value) is list:
+                for item in value:
+                    if type(item) is dict:
+                        self.search(item, search_type)
+
     def do_save(self):
-        print("Starting Save")
+        self.search(self.final_state, np.float64)
         # with open(self.save_name, "w") as file:
         #     file.write(json.dumps(self.final_state))
-        with open("example.json", "wb") as file:
+
+        # self.save_name could be a Store
+        with open(self.current_value(self.save_name), "wb") as file:
             file.write(orjson.dumps(self.final_state))
         print("Ending Save")
 
@@ -84,11 +97,15 @@ class Action:
         self.save = True
 
     def current_value(self, value):
-        if (type(value) is int) or (type(value) is float):
-            return value
+        # if (type(value) is int) or (type(value) is float):
+        #     return value
+        # if type(value) is Store:
+        #     assert (type(value.get_val()) is int) or (type(value.get_val()) is float)
+        #     return value.get_val()
         if type(value) is Store:
-            assert (type(value.get_val()) is int) or (type(value.get_val()) is float)
             return value.get_val()
+        else:
+            return value
 
     def __str__(self):
         return "Action Object"
@@ -99,10 +116,12 @@ class Action:
 
 @dataclass
 class Store:
-    __allowed = ("voltage", "counts", "power")
+    __allowed = ("voltage", "counts", "power", "name")
 
     def __init__(self, **kwargs):
+        assert len(kwargs.items()) == 1
         for k, v in kwargs.items():
+            self.key = k
             assert k in self.__class__.__allowed
             setattr(self, k, v)
 
@@ -113,10 +132,11 @@ class Store:
         return self.__dict__
 
     def set_val(self, value):
-        self.voltage = value
+        assert type(self.__dict__[self.key]) is type(value)
+        self.__dict__[self.key] = value
 
     def get_val(self):
-        return self.voltage
+        return self.__dict__[self.key]
 
 
 class SetVoltage(Action):
@@ -224,6 +244,7 @@ class Integrate(Action):
         super().__init__()
         self.int_time = int_time
         self.counts = 0
+        self.coincidences = 0
 
     def evaluate(self, current_time, counts, **kwargs):
         logger.debug(f"Evaluating Action: {self.__class__.__name__}")
@@ -233,6 +254,7 @@ class Integrate(Action):
         else:
             # only add counts for evaluations after the init evaluation
             self.counts = self.counts + counts  # add counts
+            self.coincidences += kwargs.get("coincidences")
 
         if (current_time - self.init_time) > self.int_time:
             self.delta_time = current_time - self.init_time
@@ -244,6 +266,8 @@ class Integrate(Action):
                 "name": self.__class__.__name__,
                 "counts": self.counts,
                 "delta_time": self.delta_time,
+                "coincidences": self.coincidences,
+                "coincidence_rate": self.coincidences / self.delta_time,
             }
             return self.final_state
         return {"state": "integrating"}
@@ -251,6 +275,7 @@ class Integrate(Action):
     def reset(self):
         self.init_time = -1
         self.counts = 0
+        self.coincidences = 0
 
     def __str__(self):
         return "Integrate Object"
@@ -328,17 +353,9 @@ class ValueIntegrateExtraData(Action):
             self.coincidences_hist_2.extend(kwargs.get("coincidence_array_2"))
             self.full_coinc_1.extend(kwargs.get("full_coinc_1"))
             self.full_coinc_2.extend(kwargs.get("full_coinc_2"))
-            print("Length of full_coinc_1: ", len(self.full_coinc_1))
-            print("Length of coincidences_hist_1: ", len(self.coincidences_hist_1))
-            print("Length of full_coinc_1: ", len(self.full_coinc_2))
-            print("Length of coincidences_hist_1: ", len(self.coincidences_hist_2))
-
             self.hist_1 += kwargs.get("hist_1")
             self.hist_2 += kwargs.get("hist_2")
-
             self.coincidences += kwargs.get("coincidences")
-            print("coincidences: ", self.coincidences)
-            print()
             logger.debug(
                 f"     {self.__class__.__name__}: Adding counts. Counts: {self.counts}"
             )
@@ -346,7 +363,6 @@ class ValueIntegrateExtraData(Action):
         if (self.counts > self.min_counts) and (
             self.evaluations > self.minimum_evaluations
         ):
-
             self.delta_time = current_time - self.init_time
             self.final_state = {
                 "state": "finished",
@@ -634,6 +650,8 @@ class Extremum(Action):
 
         if self.int_type == "regular":
             self.add_action(Integrate(integration_time))
+
+        self.int_name = self.event_list[1].__class__.__name__
 
         self.org_integration_time = integration_time
         self.vsource = vsource
@@ -940,7 +958,6 @@ class GraphUpdate(Action):
                     return result
         if isinstance(dic, dict):
             if dic.get("results") is not None:
-
                 return self.results_dive(dic.get("results"), key)
             else:
                 # print(dic.get(key))

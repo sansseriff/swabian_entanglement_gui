@@ -61,9 +61,12 @@ import datetime
 from SocketClient import SocketClient
 from awgClient import AWGClient
 from measurements.visibility_scan_minimize import VisibilityScanMinimize
-from measurements.shg_scan import TextDialog, SHG_Scan
-from measurements.shg_scan_alt import TextDialog, SHG_Scan_Alt, SHGScanAutoPower
+from measurements.user_input import TextDialog
+from measurements.shg_scan import SHG_Scan
+from measurements.shg_scan_alt import SHG_Scan_Alt, SHGScanAutoPower
 from measurements.pump_power_manager import PumpPowerManager
+from measurements.fast_minimum import FastMinimum
+from measurements.measurement_management import Store
 
 import logging
 
@@ -73,7 +76,8 @@ class CoincidenceExample(QMainWindow):
 
     def __init__(self, tagger):
         """Constructor of the coincidence example window
-        The TimeTagger object must be given as arguments to support running many windows at once."""
+        The TimeTagger object must be given as arguments to support running many windows at once.
+        """
 
         # Create the UI from the designer file and connect its action buttons
         super(CoincidenceExample, self).__init__()
@@ -82,7 +86,7 @@ class CoincidenceExample(QMainWindow):
         self.ui.loadparamsButton.clicked.connect(self.load_file_params)
         self.ui.clockrefButton.clicked.connect(self.clockRefMode)
         self.ui.clearButton.clicked.connect(self.getVisibility)
-        self.ui.saveButton.clicked.connect(self.saveHistData)
+        self.ui.fastMinimumButton.clicked.connect(self.fastMinimum)
         self.ui.changePowerButton.clicked.connect(self.change_shg_power)
         # self.ui.measure_viz.clicked.connect(self.measure_viz)
         self.ui.vsourceButton.clicked.connect(self.initVsource)
@@ -152,6 +156,10 @@ class CoincidenceExample(QMainWindow):
         self.scanRunning = False
         self.multiScan = False
         self.event_loop_action = None
+
+        # I should really create this in an init_start_voltage method
+        self.start_voltage_store = Store(voltage=2.58)
+
         self.user_message = [None, None]
         self.td = TextDialog()
 
@@ -734,7 +742,6 @@ class CoincidenceExample(QMainWindow):
             sleep(0.5)
 
     def dBScanAWG(self):
-
         """
         this can change the attenuation, then send a command to another computer (currently my laptop) that communicates
         with the awg. This command starts a series of modulations on the awg.
@@ -786,7 +793,6 @@ class CoincidenceExample(QMainWindow):
                 sleep(3)
 
     def saveTrace(self):
-
         self.tagger.reset()
 
         channels = [
@@ -882,7 +888,6 @@ class CoincidenceExample(QMainWindow):
             numpy.save(name, self.scopeBlock + 1)
 
     def Hist2D(self):
-
         self.tagger.reset()
 
         channels = [
@@ -949,7 +954,6 @@ class CoincidenceExample(QMainWindow):
         plt.show()
 
     def saveHistData(self):
-
         persistentData_ent1 = numpy.sum(self.histBlock_ent1, axis=0)
         persistentData_ent2 = numpy.sum(self.histBlock_ent2, axis=0)
         persistentData_coinc_1 = numpy.sum(self.histBlock_coinc_1, axis=0)
@@ -969,6 +973,8 @@ class CoincidenceExample(QMainWindow):
         pass
 
     def zoomInOnPeak(self):
+        # this does not seem to work at high count rate
+        # or pump powers. Need to figure out why.
         self.ui.delayA.setValue(-90000)
         self.ui.delayB.setValue(90000)
         self.ui.delayC.setValue(0)
@@ -988,7 +994,7 @@ class CoincidenceExample(QMainWindow):
         self.tagger.sync()
 
         _ = self.correlation.getData()
-        sleep(0.3)
+        sleep(0.2)
         res = self.correlation.getData()
         index = self.correlation.getIndex()
 
@@ -1064,7 +1070,6 @@ class CoincidenceExample(QMainWindow):
                 print("error power too high")
 
     def load_file_params(self):
-
         # self.ent = False
         with open("./UI_params.yaml", "r", encoding="utf8") as stream:
             try:
@@ -1233,7 +1238,6 @@ class CoincidenceExample(QMainWindow):
         return 0
 
     def entanglement_measurement(self):
-
         # self.event_loop_action = VisibilityScanMinimize(self.VSource, self.clockAxis)
         # self.event_loop_action = SHG_Scan_Alt(self, self.VSource)  # request user input for shg power
 
@@ -1242,6 +1246,11 @@ class CoincidenceExample(QMainWindow):
         )  # set power automatically with voltage source
 
         # self.event_loop_action = WaitUpdateWait(self)
+
+    def fastMinimum(self):
+        self.event_loop_action = FastMinimum(
+            self, self.VSource, self.start_voltage_store
+        )
 
     def initVisibility(self):
         self.inputValid = False
@@ -1301,7 +1310,6 @@ class CoincidenceExample(QMainWindow):
                     # delta_t = current_time - self.t_previous
                     self.counts_list.append(count)
             if self.state == "waiting":
-
                 if (current_time - self.t_previous) > self.holdTime:
                     self.state = "integrating"
                     print("state: ", self.state)
@@ -1457,7 +1465,6 @@ class CoincidenceExample(QMainWindow):
                         )
                 else:
                     if self.IntType == "Rolling":
-
                         # first time changing from Rolling to Discrete
                         self.persistentData = numpy.sum(self.histBlock, axis=0)
                         # self.BlockIndex == 1
@@ -1468,9 +1475,7 @@ class CoincidenceExample(QMainWindow):
                 if self.ent:
                     currentData_ent1 = self.persistentData_ent1
             else:
-
                 if self.ent:
-
                     self.persistentData_ent1 = numpy.sum(self.histBlock_ent1, axis=0)
                     self.persistentData_ent2 = numpy.sum(self.histBlock_ent2, axis=0)
                     self.persistentData_coinc_1 = numpy.sum(
@@ -1490,7 +1495,6 @@ class CoincidenceExample(QMainWindow):
                     self.plt_clock_corr_coinc_1[0].set_ydata(currentData_coinc_1 * 10)
                     self.plt_clock_corr_coinc_2[0].set_ydata(currentData_coinc_2 * 10)
                     if self.BlockIndex == 0:
-
                         coincidences = numpy.sum(self.persistentData_coinc_1)
                         self.coinc_idx += 1
                         self.coinc_x.append(self.coinc_idx)
