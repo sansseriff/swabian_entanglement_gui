@@ -346,16 +346,19 @@ class CoincidenceExample(QMainWindow):
             "#6acc93",
             "#cc916a",
         ]
+        data = self.counter.getData().T
+        # print(numpy.shape(data))
         lines = self.plt_counter = self.counterAxis.plot(
             self.counter.getIndex() * 1e-12,
-            self.counter.getData().T * self.getCouterNormalizationFactor(),
+            data[:, :3] * self.getCouterNormalizationFactor(),
         )
+
         for i, line in enumerate(lines):
             line.set_color(colors[i])
         self.counterAxis.set_xlabel("time (s)")
         self.counterAxis.set_ylabel("count rate (kEvents/s)")
         self.counterAxis.set_title("Count rate")
-        self.counterAxis.legend(["A", "B", "C", "D", "coincidences"])
+        # self.counterAxis.legend(["A", "B", "C", "D", "coincidences"])
         self.counterAxis.grid(True)
 
         self.correlationAxis.clear()
@@ -1370,7 +1373,7 @@ class CoincidenceExample(QMainWindow):
             if self.BlockIndex >= int(self.ui.IntTime.value() * 10):
                 self.BlockIndex = 0
 
-            data = self.counter.getData() * self.getCouterNormalizationFactor()
+            data = self.counter.getData()[:3] * self.getCouterNormalizationFactor()
             for data_line, plt_counter in zip(
                 data, self.plt_counter
             ):  # loop though coincidences, Ch1, Ch2

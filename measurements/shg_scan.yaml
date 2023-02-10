@@ -17,7 +17,7 @@ shg_scan:
   # This means collecting extra data at high count rates where
   # the data rate quickly exceeds the minimum/maximum count thresholds
   minimum_integrate_evaluations: 10
-  output_file_name: "shg_scan_results_night_2.2.2022.json"
+  output_file_name: "shg_scan_results_sunday_2.5.2022.json"
 
 
 # channel 1 snspd voltage: 0.196

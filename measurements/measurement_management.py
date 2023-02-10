@@ -88,9 +88,10 @@ class Action:
         #     file.write(json.dumps(self.final_state))
 
         # self.save_name could be a Store
+        logger.info(f"     {self.__class__.__name__}: Starting save")
         with open(self.current_value(self.save_name), "wb") as file:
             file.write(orjson.dumps(self.final_state))
-        print("Ending Save")
+        logger.info(f"     {self.__class__.__name__}: Ending save")
 
     def enable_save(self, save_name="output_file.json"):
         self.save_name = save_name
@@ -245,29 +246,44 @@ class Integrate(Action):
         self.int_time = int_time
         self.counts = 0
         self.coincidences = 0
+        self.hist_1 = None
+        self.hist_2 = None
 
     def evaluate(self, current_time, counts, **kwargs):
         logger.debug(f"Evaluating Action: {self.__class__.__name__}")
         if self.init_time == -1:
             self.init_time = current_time
+            self.hist_1 = np.zeros_like(kwargs.get("hist_1"))
+            self.hist_2 = np.zeros_like(kwargs.get("hist_2"))
             return {"state": "integrating"}
         else:
             # only add counts for evaluations after the init evaluation
             self.counts = self.counts + counts  # add counts
             self.coincidences += kwargs.get("coincidences")
+            self.hist_1 += kwargs.get("hist_1")
+            self.hist_2 += kwargs.get("hist_2")
 
         if (current_time - self.init_time) > self.int_time:
             self.delta_time = current_time - self.init_time
             logger.info(
                 f"     {self.__class__.__name__}: Finishing. Time Integrating: {round(self.delta_time,3)}"
             )
+            singles_rate_1 = float(np.sum(self.hist_1) / self.delta_time)
+            singles_rate_2 = float(np.sum(self.hist_2) / self.delta_time)
+            coincidence_rate = self.coincidences / self.delta_time
+            print("singles_rate_1: ", round(singles_rate_1, 3))
+            print("singles_rate_2: ", round(singles_rate_2, 3))
+            print("coincidence_rate: ", round(coincidence_rate, 3))
+
             self.final_state = {
                 "state": "finished",
                 "name": self.__class__.__name__,
                 "counts": self.counts,
                 "delta_time": self.delta_time,
                 "coincidences": self.coincidences,
-                "coincidence_rate": self.coincidences / self.delta_time,
+                "singles_rate_1": singles_rate_1,
+                "singles_rate_2": singles_rate_2,
+                "coincidence_rate": coincidence_rate,
             }
             return self.final_state
         return {"state": "integrating"}
@@ -650,9 +666,7 @@ class Extremum(Action):
 
         if self.int_type == "regular":
             self.add_action(Integrate(integration_time))
-
-        self.int_name = self.event_list[1].__class__.__name__
-
+            self.int_name = self.event_list[1].__class__.__name__
         self.org_integration_time = integration_time
         self.vsource = vsource
         # could be overridden by scan data supplied with evaluate
