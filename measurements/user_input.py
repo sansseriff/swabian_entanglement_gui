@@ -56,8 +56,10 @@ class UserInput(Action):
             }
             if self.output_store is not None:
                 self.output_store.set_val(self.main_window.user_message[0])
-            print("user message: ", self.main_window.user_message)
-            # self.main_window.user_message is either ['number', True] or ['', False] (false when the cancel button is clicked)
-            # print(self.final_state)
+            if self.main_window.user_message[1] is False:
+                self.pass_state = True
+                print("aborting ", self.__class__.__name__)
+                self.main_window.user_message = [None, None]
+                return {"state": "abort", "name": self.__class__.__name__}
             self.main_window.user_message = [None, None]
             return self.final_state

@@ -13,7 +13,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 class EntanglementControlWindow(object):
     def setupUi(self, CoincidenceExample):
-        CoincidenceExample.setObjectName("Entanglement Analyser V3.1")
+        CoincidenceExample.setObjectName("Entanglement Analyzer V3.1")
         CoincidenceExample.resize(859, 811)
         self.centralwidget = QtWidgets.QWidget(CoincidenceExample)
         self.centralwidget.setEnabled(True)
@@ -27,12 +27,13 @@ class EntanglementControlWindow(object):
         self.horizontalLayout.setObjectName("horizontalLayout")
         self.gridLayout = QtWidgets.QGridLayout()
         self.gridLayout.setObjectName("gridLayout")
-        self.label_17 = QtWidgets.QLabel(self.centralwidget)
-        self.label_17.setObjectName("label_17")
-        self.gridLayout.addWidget(self.label_17, 9, 1, 1, 1)
-        self.label_18 = QtWidgets.QLabel(self.centralwidget)
-        self.label_18.setObjectName("label_18")
-        self.gridLayout.addWidget(self.label_18, 3, 0, 1, 1)
+        self.label_saveName = QtWidgets.QLabel(self.centralwidget)
+        self.label_saveName.setObjectName("label_saveName")
+        self.gridLayout.addWidget(self.label_saveName, 9, 1, 1, 1)
+
+        self.label_C = QtWidgets.QLabel(self.centralwidget)
+        self.label_C.setObjectName("label_C")
+        self.gridLayout.addWidget(self.label_C, 3, 0, 1, 1)
 
         self.delayB = QtWidgets.QSpinBox(self.centralwidget)
         sizePolicy = QtWidgets.QSizePolicy(
@@ -86,16 +87,16 @@ class EntanglementControlWindow(object):
         self.delayD.setObjectName("delayD")
         self.gridLayout.addWidget(self.delayD, 4, 2, 1, 1)
 
-        self.label = QtWidgets.QLabel(self.centralwidget)
-        self.label.setObjectName("label")
-        self.gridLayout.addWidget(self.label, 0, 1, 1, 1)
-        self.label_11 = QtWidgets.QLabel(self.centralwidget)
-        self.label_11.setObjectName("label_11")
-        self.gridLayout.addWidget(self.label_11, 2, 0, 1, 1)
+        self.label_inputChannel = QtWidgets.QLabel(self.centralwidget)
+        self.label_inputChannel.setObjectName("label")
+        self.gridLayout.addWidget(self.label_inputChannel, 0, 1, 1, 1)
+        self.label_B = QtWidgets.QLabel(self.centralwidget)
+        self.label_B.setObjectName("label_B")
+        self.gridLayout.addWidget(self.label_B, 2, 0, 1, 1)
         self.label_14 = QtWidgets.QLabel(self.centralwidget)
         self.label_14.setText("")
         self.label_14.setObjectName("label_14")
-        self.gridLayout.addWidget(self.label_14, 9, 5, 1, 1)
+        self.gridLayout.addWidget(self.label_14, 8, 5, 1, 1)
 
         self.channelB = QtWidgets.QSpinBox(self.centralwidget)
         sizePolicy = QtWidgets.QSizePolicy(
@@ -149,9 +150,9 @@ class EntanglementControlWindow(object):
         self.channelD.setObjectName("channelD")
         self.gridLayout.addWidget(self.channelD, 4, 1, 1, 1)
 
-        self.label_10 = QtWidgets.QLabel(self.centralwidget)
-        self.label_10.setObjectName("label_10")
-        self.gridLayout.addWidget(self.label_10, 1, 0, 1, 1)
+        self.label_A = QtWidgets.QLabel(self.centralwidget)
+        self.label_A.setObjectName("label_A")
+        self.gridLayout.addWidget(self.label_A, 1, 0, 1, 1)
         self.label_4 = QtWidgets.QLabel(self.centralwidget)
         self.label_4.setText("")
         self.label_4.setObjectName("label_4")
@@ -232,9 +233,16 @@ class EntanglementControlWindow(object):
         self.deadTimeA.setMaximum(1000.0)
         self.deadTimeA.setObjectName("deadTimeA")
         self.gridLayout.addWidget(self.deadTimeA, 1, 4, 1, 1)
-        self.saveFileName = QtWidgets.QLineEdit(self.centralwidget)
-        self.saveFileName.setObjectName("saveFileName")
-        self.gridLayout.addWidget(self.saveFileName, 9, 2, 1, 2)
+        ###################
+        # self.saveFileName = QtWidgets.QLineEdit(self.centralwidget)
+        # self.saveFileName.setObjectName("saveFileName")
+        # self.gridLayout.addWidget(self.saveFileName, 9, 2, 1, 2)
+
+        self.measurement_combobox = QtWidgets.QComboBox()
+        self.measurement_combobox.setObjectName("measurementChoice")
+        self.measurement_combobox.addItems([])
+        self.gridLayout.addWidget(self.measurement_combobox, 9, 2, 1, 2)
+
         self.intf_voltage = QtWidgets.QDoubleSpinBox(self.centralwidget)
         self.intf_voltage.setMinimum(-1000)
         self.intf_voltage.setMaximum(1000)
@@ -248,10 +256,10 @@ class EntanglementControlWindow(object):
         self.gridLayout.addWidget(self.set_intf_voltage, 8, 3, 1, 1)
         self.initScan = QtWidgets.QPushButton(self.centralwidget)
         self.initScan.setObjectName("initScan")
-        self.gridLayout.addWidget(self.initScan, 8, 4, 1, 1)
-        self.label_19 = QtWidgets.QLabel(self.centralwidget)
-        self.label_19.setObjectName("label_19")
-        self.gridLayout.addWidget(self.label_19, 4, 0, 1, 1)
+        self.gridLayout.addWidget(self.initScan, 9, 4, 1, 1)
+        self.label_D = QtWidgets.QLabel(self.centralwidget)
+        self.label_D.setObjectName("label_D")
+        self.gridLayout.addWidget(self.label_D, 4, 0, 1, 1)
 
         # self.channelC = QtWidgets.QDoubleSpinBox(self.centralwidget)
         # sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
@@ -420,9 +428,9 @@ class EntanglementControlWindow(object):
         self.clearButton = QtWidgets.QPushButton(self.centralwidget)
         self.clearButton.setObjectName("clearButton")
         self.horizontalLayout_2.addWidget(self.clearButton)
-        self.fastMinimumButton = QtWidgets.QPushButton(self.centralwidget)
-        self.fastMinimumButton.setObjectName("fastMinimumButton")
-        self.horizontalLayout_2.addWidget(self.fastMinimumButton)
+        # self.fastMinimumButton = QtWidgets.QPushButton(self.centralwidget)
+        # self.fastMinimumButton.setObjectName("fastMinimumButton")
+        # self.horizontalLayout_2.addWidget(self.fastMinimumButton)
 
         self.vsourceButton = QtWidgets.QPushButton(self.centralwidget)
         self.vsourceButton.setObjectName("vsourceButton")
@@ -445,29 +453,35 @@ class EntanglementControlWindow(object):
                 "Entanglement Analyser V3.1", "Entanglement Analyser V3.1", None, -1
             )
         )
-        self.label_17.setText(
+        self.label_saveName.setText(
             QtWidgets.QApplication.translate("CoincidenceExample", "saveName", None, -1)
         )
-        self.label_18.setText(
-            QtWidgets.QApplication.translate("CoincidenceExample", "C", None, -1)
-        )
+
         self.delayB.setSuffix(
             QtWidgets.QApplication.translate("CoincidenceExample", " ps", None, -1)
         )
         self.delayA.setSuffix(
             QtWidgets.QApplication.translate("CoincidenceExample", " ps", None, -1)
         )
-        self.label.setText(
+        self.label_inputChannel.setText(
             QtWidgets.QApplication.translate(
                 "CoincidenceExample", "Input channel", None, -1
             )
         )
-        self.label_11.setText(
-            QtWidgets.QApplication.translate("CoincidenceExample", "B:", None, -1)
-        )
-        self.label_10.setText(
+
+        self.label_A.setText(
             QtWidgets.QApplication.translate("CoincidenceExample", "A:", None, -1)
         )
+        self.label_B.setText(
+            QtWidgets.QApplication.translate("CoincidenceExample", "B:", None, -1)
+        )
+        self.label_C.setText(
+            QtWidgets.QApplication.translate("CoincidenceExample", "C", None, -1)
+        )
+        self.label_D.setText(
+            QtWidgets.QApplication.translate("CoincidenceExample", "D", None, -1)
+        )
+
         self.label_2.setText(
             QtWidgets.QApplication.translate(
                 "CoincidenceExample", "Input delay", None, -1
@@ -512,11 +526,11 @@ class EntanglementControlWindow(object):
             QtWidgets.QApplication.translate("CoincidenceExample", "Set", None, -1)
         )
         self.initScan.setText(
-            QtWidgets.QApplication.translate("CoincidenceExample", "initScan", None, -1)
+            QtWidgets.QApplication.translate(
+                "CoincidenceExample", "init measurement", None, -1
+            )
         )
-        self.label_19.setText(
-            QtWidgets.QApplication.translate("CoincidenceExample", "D", None, -1)
-        )
+
         self.delayC.setSuffix(
             QtWidgets.QApplication.translate("CoincidenceExample", " ps", None, -1)
         )
@@ -603,11 +617,11 @@ class EntanglementControlWindow(object):
                 "CoincidenceExample", "Zoom In To Peak", None, -1
             )
         )
-        self.fastMinimumButton.setText(
-            QtWidgets.QApplication.translate(
-                "CoincidenceExample", "Fast Minimum", None, -1
-            )
-        )
+        # self.fastMinimumButton.setText(
+        #     QtWidgets.QApplication.translate(
+        #         "CoincidenceExample", "Fast Minimum", None, -1
+        #     )
+        # )
 
         self.vsourceButton.setText(
             QtWidgets.QApplication.translate(

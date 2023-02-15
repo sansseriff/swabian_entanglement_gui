@@ -67,6 +67,7 @@ from measurements.shg_scan_alt import SHG_Scan_Alt, SHGScanAutoPower
 from measurements.pump_power_manager import PumpPowerManager
 from measurements.fast_minimum import FastMinimum
 from measurements.measurement_management import Store
+from measurment_list import MeasurementList
 
 import logging
 
@@ -86,11 +87,10 @@ class CoincidenceExample(QMainWindow):
         self.ui.loadparamsButton.clicked.connect(self.load_file_params)
         self.ui.clockrefButton.clicked.connect(self.clockRefMode)
         self.ui.clearButton.clicked.connect(self.getVisibility)
-        self.ui.fastMinimumButton.clicked.connect(self.fastMinimum)
         self.ui.changePowerButton.clicked.connect(self.change_shg_power)
         # self.ui.measure_viz.clicked.connect(self.measure_viz)
         self.ui.vsourceButton.clicked.connect(self.initVsource)
-        self.ui.initScan.clicked.connect(self.initVisibility)
+        self.ui.initScan.clicked.connect(self.initMeasurement)
         self.ui.set_intf_voltage.clicked.connect(self.set_intf_voltage)
 
         # Update the measurements whenever any input configuration changes
@@ -180,6 +180,22 @@ class CoincidenceExample(QMainWindow):
                 self.clockRefMode()
                 self.zoomInOnPeak()
 
+    def loadMeasurements(self):
+        self.measurement_list = MeasurementList(self.ui.measurement_combobox)
+        self.measurement_list.add_measurement(
+            VisibilityScanMinimize,
+            (self.VSource, self.clockAxis),
+            "vis scan minimize",
+        )
+        self.measurement_list.add_measurement(
+            SHGScanAutoPower, (self, self.VSource), "shg scan"
+        )
+        self.measurement_list.add_measurement(
+            FastMinimum,
+            (self, self.VSource, self.start_voltage_store),
+            "fast minimum",
+        )
+
     def initVsource(self):
         self.VSource = teledyneT3PS("10.7.0.147", port=1026)
         self.VSource.connect()
@@ -191,6 +207,8 @@ class CoincidenceExample(QMainWindow):
         print("VSource Initialized With Voltage: ", V_init)
         self.ui.intf_voltage.setProperty("value", V_init)
         self.vSource_initialized = True
+
+        self.loadMeasurements()
 
     def reInit(self):
         # Create the TimeTagger measurements
@@ -1240,25 +1258,11 @@ class CoincidenceExample(QMainWindow):
 
         return 0
 
-    def entanglement_measurement(self):
-        # self.event_loop_action = VisibilityScanMinimize(self.VSource, self.clockAxis)
-        # self.event_loop_action = SHG_Scan_Alt(self, self.VSource)  # request user input for shg power
-
-        self.event_loop_action = SHGScanAutoPower(
-            self, self.VSource
-        )  # set power automatically with voltage source
-
-        # self.event_loop_action = WaitUpdateWait(self)
-
-    def fastMinimum(self):
-        self.event_loop_action = FastMinimum(
-            self, self.VSource, self.start_voltage_store
-        )
-
-    def initVisibility(self):
-        self.inputValid = False
-
-        self.entanglement_measurement()
+    def initMeasurement(self):
+        cindex = self.ui.measurement_combobox.currentIndex()
+        print(cindex)
+        self.event_loop_action = self.measurement_list.load_measurement(cindex)
+        print(type(self.event_loop_action))
 
     def collectCoincidences(self, count):
         ######### a way to do a coincidence measurment inside the program's main event loop.

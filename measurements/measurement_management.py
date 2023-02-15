@@ -46,6 +46,10 @@ class Action:
         while True:
             response = self.event_list[0].evaluate(current_time, counts, **kwargs)
             responses.append(response)
+            if response["state"] == "abort":
+                self.pass_state = True
+                print("aborting ", self.__class__.__name__)
+                return {"state": "abort", "name": self.__class__.__name__}
             if response["state"] != "finished":
                 break
             else:
@@ -259,6 +263,8 @@ class Integrate(Action):
         else:
             # only add counts for evaluations after the init evaluation
             self.counts = self.counts + counts  # add counts
+            print("self.coincidences: ", self.coincidences)
+            print("kwargs.get('coincidences'): ", kwargs.get("coincidences"))
             self.coincidences += kwargs.get("coincidences")
             self.hist_1 += kwargs.get("hist_1")
             self.hist_2 += kwargs.get("hist_2")
