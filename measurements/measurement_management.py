@@ -263,8 +263,6 @@ class Integrate(Action):
         else:
             # only add counts for evaluations after the init evaluation
             self.counts = self.counts + counts  # add counts
-            print("self.coincidences: ", self.coincidences)
-            print("kwargs.get('coincidences'): ", kwargs.get("coincidences"))
             self.coincidences += kwargs.get("coincidences")
             self.hist_1 += kwargs.get("hist_1")
             self.hist_2 += kwargs.get("hist_2")
@@ -471,9 +469,9 @@ class DistributeData(Action):
             to deactivate itself, but it should not delete itself"""
         # need to drop down the prev_data from the recursive call!! That's confusing..
         # do that by repeating the **kwargs here:
-        response = self.event_list[0].evaluate(
-            current_time, counts, **{self.data_name: self.data}
-        )
+
+        kwargs[self.data_name] = self.data
+        response = self.event_list[0].evaluate(current_time, counts, **kwargs)
         if (
             response["state"] == "finished"
         ):  # might want to change these to response.get()
@@ -494,7 +492,8 @@ class DistributeData(Action):
 
             # Distribute Action
             # provide the data injected during initialization
-            self.evaluate(current_time, counts, **{self.data_name: self.data})
+            kwargs[self.data_name] = self.data
+            self.evaluate(current_time, counts, **kwargs)
 
         # this intermediate return can be passed to a graph by ConcurrentAction
         return {"state": "waiting", "results": response}
@@ -536,7 +535,8 @@ class DependentAction(Action):
 
             # Dependent Action
             # take the data and put give it to the next object
-            self.evaluate(current_time, counts, **{self.data_name: response})
+            kwargs[self.data_name] = response
+            self.evaluate(current_time, counts, **kwargs)
 
         # this intermediate return can be passed to a graph by ConcurrentAction
         return {"state": "waiting", "results": response}
@@ -566,12 +566,6 @@ class Scan(Action):
                     self.scan_params["time_per_point"],
                 )
             )
-
-    # def flatten_evaluate(self, scan_params, vsource):
-    #     result = self.evaluate(scan_params, vsource)
-    #     if result.get("state") == "finished":
-    #         for item in result:
-    #             if
 
     def __str__(self):
         return "Scan Action Object"
@@ -851,7 +845,8 @@ class Extremum(Action):
                             self.fine_grain_iteration,
                         )
 
-                        self.update_rate_time()
+                        self.update_rate()
+                        self.update_time()
 
                         self.fine_grain_status = "activated"
                         last_direction = self.direction_list[-1]
@@ -930,7 +925,7 @@ class ConcurrentAction(Action):
         for object in self.objects:
             # actions alternate sharing intermediate results
             self.intermediate_result = object.evaluate(
-                current_time, counts, graph_data=self.intermediate_result
+                current_time, counts, graph_data=self.intermediate_result, **kwargs
             )
             if self.intermediate_result.get("state") == "finished":
                 self.pass_state = True
@@ -1007,16 +1002,20 @@ class GraphUpdate(Action):
 
         color = self.results_dive(graph_data, "color")
         coinc_rate = self.results_dive(graph_data, "coinc_rate")
-        # if coinc_rate is not None:
-        #     print(coinc_rate)
 
         if (counts is not None) and (delta_time is not None) and (voltage is not None):
-            self.x_data.append(voltage)
-            self.y_data.append(counts / delta_time)
-            self.plot[0].set_data(self.x_data, self.y_data)
-            self.axis.relim()
-            self.axis.autoscale_view(True, True, True)
-            # self.canvas.draw()
+            if type(counts) is not list:
+                # a dumb hack to not intercept the coarse measurement finish.
+                print("counts: ", counts)
+                print("delta_time: ", delta_time)
+                print("voltage: ", voltage)
+
+                self.x_data.append(voltage)
+                self.y_data.append(counts / delta_time)
+                self.plot[0].set_data(self.x_data, self.y_data)
+                self.axis.relim()
+                self.axis.autoscale_view(True, True, True)
+                # self.canvas.draw()
 
         if (voltage is not None) and (coinc_rate is not None) and (color is not None):
             if self.color != color:

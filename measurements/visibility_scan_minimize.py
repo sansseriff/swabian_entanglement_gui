@@ -48,12 +48,28 @@ class VisibilityScanMinimize(Action):
         minimum_and_maximum = DistributeData("coarse_scan")
 
         minimum = Extremum(
-            "min", 1, 1, 0.05, voltage_source, 0, "coarse_scan", fine_grain_mode=True
+            "min",
+            1,
+            1,
+            0.05,
+            voltage_source,
+            0,
+            "coarse_scan",
+            fine_grain_mode=True,
+            iteration_increase=True,
         )
         minimum.enable_save(save_name="minimum_data.json")
         minimum_and_maximum.add_action(minimum)
         maximum = Extremum(
-            "max", 0.25, 4, 0.2, voltage_source, 0, "coarse_scan", fine_grain_mode=True
+            "max",
+            0.25,
+            4,
+            0.2,
+            voltage_source,
+            0,
+            "coarse_scan",
+            fine_grain_mode=True,
+            iteration_increase=True,
         )
         maximum.enable_save(save_name="maximum_data.json")
         minimum_and_maximum.add_action(maximum)
