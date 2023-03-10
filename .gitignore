@@ -1,6 +1,7 @@
 __pycache__/
 data/
 jsi_scan/
+other/
 
 
 *.json

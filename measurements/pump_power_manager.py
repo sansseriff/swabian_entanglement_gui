@@ -54,7 +54,7 @@ class PumpPowerManager:
         # if percentage > 114:
         #     print("Error, power too high")
         #     return 1
-        if power > 4.0:
+        if power > 4.07:
             print("Error, too much power")
             return {
                 "expected_amps": 0,

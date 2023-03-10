@@ -4,6 +4,7 @@ from typing import Any
 class MeasurementList:
     def __init__(self, combobox):
         self.combobox = combobox
+        self.combobox.clear()
         self.measurement_list = []
         self.idx = 0
 
@@ -18,4 +19,7 @@ class MeasurementList:
         action = item["action"]
         args = item["args"]
         # this initializes the action
-        return action(*args)
+        if isinstance(args, tuple):
+            return action(*args)
+        else:
+            return action(args)

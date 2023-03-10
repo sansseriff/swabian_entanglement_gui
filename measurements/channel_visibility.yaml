@@ -1,0 +1,65 @@
+channel_visibility:
+  scan_power: 3.0
+  low_power: 1.2 
+  high_power: 4.06
+  intf_stabilize_time: 90
+  minimum_voltage: 2.58
+  maximum_voltage: 1.60
+  power_stabilize_time: 30 
+  output_file_name: "channel_visibility_42_52.json"
+
+  scan_extremum_min:
+    type: "min"
+    int_time: 0.5
+    wait_time: 1
+    change_rate: 0.05
+    fine_grain_mode: true
+    low_res_steps: 0
+    steps: 14
+    int_type: "custom"
+
+    minimum_counts: 600 
+    minimum_integrate_evaluations: 10
+
+  scan_extremum_max:
+    type: "max"
+    int_time: 0.25
+    wait_time: 4
+    change_rate: 0.2
+    fine_grain_mode: true
+    low_res_steps: 0
+    steps: 14
+    int_type: "custom"
+
+    minimum_counts: 20000 
+    minimum_integrate_evaluations: 10
+
+  extremum_min:
+    type: "min"
+    int_time: 0.5
+    wait_time: 1
+    change_rate: 0.05
+    fine_grain_mode: true
+    low_res_steps: 0
+    steps: 5
+    int_type: "custom"
+
+    minimum_counts: 600
+    minimum_integrate_evaluations: 10
+
+  extremum_max:
+    type: "max"
+    int_time: 0.25
+    wait_time: 4
+    change_rate: 0.2
+    fine_grain_mode: true
+    low_res_steps: 0
+    steps: 5
+    int_type: "custom"
+
+    minimum_counts: 20000 
+    minimum_integrate_evaluations: 10
+  
+
+  
+    

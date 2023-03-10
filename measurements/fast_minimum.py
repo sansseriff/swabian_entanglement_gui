@@ -3,6 +3,11 @@ from .measurement_management import *
 
 
 class CombineStringStores(Action):
+    """
+    This is used to build file names based on user input supplied during runtime
+
+    """
+
     def __init__(
         self,
         input_store_1: Store,
@@ -49,7 +54,7 @@ class FastMinimum(Action):
                 output_store=name_1,
             )
         )
-        self.add_action(Wait(0.2))  # for avoiding double evaluation of the user inputs
+        # self.add_action(Wait(0.2))  # for avoiding double evaluation of the user inputs
         self.add_action(
             UserInput(
                 main_window,
@@ -73,12 +78,12 @@ class FastMinimum(Action):
         )
         fast_min.update_start_iteration(3)  # change rate is now 0.4*(0.5^3) = 0.05
         self.add_action(fast_min)
-        self.add_action(SetPower(4.0, voltage_source, 1))
-        self.add_action(Wait(3))
-        self.add_action(Integrate(2))
+        self.add_action(SetPower(4.06, voltage_source, 1))
+        self.add_action(Wait(1))
+        self.add_action(Integrate(5))
         self.add_action(SetPower(1.2, voltage_source, 1))
         self.add_action(Wait(3))
-        self.add_action(Integrate(2))
+        self.add_action(Integrate(5))
         self.add_action(
             CombineStringStores(
                 name_1,
@@ -91,5 +96,5 @@ class FastMinimum(Action):
         self.add_action(
             SetVoltage(1.6, voltage_source, 2)
         )  # maximize so you can zoom_to_peak in the next run
-        self.add_action(SetPower(1.7, voltage_source, 1))
+        self.add_action(SetPower(3, voltage_source, 1))
         self.enable_save(combined_names)

@@ -40,6 +40,7 @@ class UserInput(Action):
     def evaluate(self, current_time, counts, **kwargs):
         if self.init:
             self.init = False
+            self.main_window.user_message[0] = None
             # why singleShot: https://stackoverflow.com/questions/56524140/showing-qinputdialog-and-other-gui-objects-from-various-threads
             # why lambda function: https://stackoverflow.com/questions/7489262/singleshot-slot-with-arguments
             QTimer.singleShot(
@@ -49,6 +50,7 @@ class UserInput(Action):
         if self.main_window.user_message[0] is None:
             return {"state": "waiting"}
         else:
+            print("user message: ", self.main_window.user_message)
             self.final_state = {
                 "state": "finished",
                 "name": self.__class__.__name__,

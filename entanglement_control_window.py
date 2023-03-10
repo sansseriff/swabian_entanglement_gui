@@ -454,7 +454,9 @@ class EntanglementControlWindow(object):
             )
         )
         self.label_saveName.setText(
-            QtWidgets.QApplication.translate("CoincidenceExample", "saveName", None, -1)
+            QtWidgets.QApplication.translate(
+                "CoincidenceExample", "measurment:", None, -1
+            )
         )
 
         self.delayB.setSuffix(
@@ -505,7 +507,7 @@ class EntanglementControlWindow(object):
         )
         self.label_16.setText(
             QtWidgets.QApplication.translate(
-                "CoincidenceExample", "intf_voltage", None, -1
+                "CoincidenceExample", "intf_voltage:", None, -1
             )
         )
         self.label_15.setText(
