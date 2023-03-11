@@ -1,12 +1,13 @@
 channel_visibility:
   scan_power: 3.0
-  low_power: 1.2 
+  low_power: 3.0 # TEMPORARY
   high_power: 4.06
   intf_stabilize_time: 90
-  minimum_voltage: 2.58
+  minimum_voltage_1: 2.58
+  minimum_voltage_2: 3.9
   maximum_voltage: 1.60
   power_stabilize_time: 30 
-  output_file_name: "channel_visibility_42_52.json"
+  output_file_name: "channel_visibility_DENSITY_MATRIX_TEST.json"
 
   scan_extremum_min:
     type: "min"

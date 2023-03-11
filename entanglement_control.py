@@ -68,6 +68,7 @@ from measurements.fast_minimum import FastMinimum
 from measurements.measurement_management import Store
 from measurement_list import MeasurementList
 from measurements.channel_visibility import ChannelVisibility
+from measurements.channel_visibility_dm import ChannelVisibilityDM
 from measurements.voltage_current_scan import VoltageCurrentScan
 
 import logging
@@ -214,6 +215,9 @@ class CoincidenceExample(QMainWindow):
         )
         self.measurement_list.add_measurement(
             ChannelVisibility, self.Vsource, "channel visibility"
+        )
+        self.measurement_list.add_measurement(
+            ChannelVisibilityDM, self.Vsource, "channel visibility dm"
         )
         self.measurement_list.add_measurement(
             VoltageCurrentScan, self.Vsource, "voltage current scan"
@@ -1653,6 +1657,7 @@ if __name__ == "__main__":
 
     # For TimeTagger X (rack mount version) only HighResB is supported
     tagger = createTimeTagger(resolution=Resolution.HighResB)
+    tagger.setLED(0x01FF0000)
     # tagger.setSoftwareClock
     # tagger = createTimeTagger()
 

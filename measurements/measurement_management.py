@@ -8,6 +8,8 @@ from .pump_power_manager import PumpPowerManager
 import logging
 import orjson
 from tqdm import tqdm
+from typing import Union
+from snspd_measure.inst.teledyneT3PS import teledyneT3PS
 
 """
 The action framework is used to build and specify measurements in a composable and modular fashion so that they
@@ -142,6 +144,11 @@ class Store:
             assert k in self.__class__.__allowed
             setattr(self, k, v)
 
+        if isinstance(self.__dict__[self.key], (int, float)):
+            self.number = True
+        else:
+            self.number = False
+
     def __str__(self):
         return str(self.__dict__)
 
@@ -149,25 +156,35 @@ class Store:
         return self.__dict__
 
     def set_val(self, value):
-        assert type(self.__dict__[self.key]) is type(value)
-        self.__dict__[self.key] = value
+        if self.number:
+            assert isinstance(value, (int, float))
+            self.__dict__[self.key] = value
+        else:
+            assert type(self.__dict__[self.key]) is type(value)
+            self.__dict__[self.key] = value
 
     def get_val(self):
         return self.__dict__[self.key]
 
 
 class SetVoltage(Action):
-    def __init__(self, voltage, vsource, channel, **kwargs):
+    def __init__(
+        self, voltage: Union[float, Store], vsource: teledyneT3PS, channel, **kwargs
+    ):
         super().__init__(**kwargs)
         # lame version of data validation. To be improoved someday with pydantic
+        # ACTUALLY you can't do data validation here, because these could be Stores
+        #
         self.vsource = vsource
-        self.voltage = float(voltage)
-        self.channel = int(channel)
+        self.voltage = voltage
+        self.channel = channel
 
     def evaluate(self, current_time, counts, **kwargs):
         logger.debug(f"Evaluating Action: {self.n}")
-        current_voltage = self.current_value(self.voltage)  # if self.voltage is a Store
-        self.vsource.setVoltage(self.channel, round(current_voltage, 3))
+        current_voltage = float(
+            self.current_value(self.voltage)
+        )  # if self.voltage is a Store
+        self.vsource.setVoltage(int(self.channel), round(current_voltage, 3))
         print("####### setting voltage to", round(current_voltage, 3))
         logger.info(f"     {self.n}: setting voltage to: {round(current_voltage, 3)}")
         self.final_state = {
@@ -183,7 +200,7 @@ class SetVoltage(Action):
 
 
 class GetVoltageCurrent(Action):
-    def __init__(self, vsource, channel, **kwargs):
+    def __init__(self, vsource: teledyneT3PS, channel, **kwargs):
         super().__init__(**kwargs)
         self.vsource = vsource
         self.channel = channel
@@ -208,8 +225,8 @@ class GetVoltageCurrent(Action):
         return "SetVoltage Action Object"
 
 
-class SetPower:
-    def __init__(self, power, vsource, channel, **kwargs):
+class SetPower(Action):
+    def __init__(self, power, vsource: teledyneT3PS, channel, **kwargs):
         super().__init__(**kwargs)
         self.power = power
         self.power_manager = PumpPowerManager(vsource, channel)
@@ -299,6 +316,8 @@ class Integrate(Action):
             self.init_time = current_time
             self.hist_1 = np.zeros_like(kwargs.get("hist_1"))
             self.hist_2 = np.zeros_like(kwargs.get("hist_2"))
+            if self.label != "default_label":
+                print(f"################################## Beginning: {self.label}")
             return {"state": "integrating"}
         else:
             # only add counts for evaluations after the init evaluation
@@ -352,7 +371,8 @@ class ValueIntegrate(Action):
         logger.debug(f"Evaluating Action: {self.n}")
         if self.init_time == -1:
             self.init_time = current_time
-            # started
+            if self.label != "default_label":
+                print(f"################################## Beginning: {self.label}")
             logger.info(f"     {self.n}: Starting Integrate")
         else:
             self.counts = self.counts + counts  # add counts
@@ -409,6 +429,8 @@ class ValueIntegrateExtraData(Action):
             self.hist_2 = np.zeros_like(kwargs.get("hist_2"))
             if self.progress_bar:
                 self.progress_bar = tqdm(total=self.min_counts)
+            if self.label != "default_label":
+                print(f"################################## Beginning: {self.label}")
 
         else:
             # only add counts for iterations after the init iteration.
@@ -475,7 +497,7 @@ class VoltageAndIntegrate(Action):
     def __init__(
         self,
         voltage,
-        vsource,
+        vsource: teledyneT3PS,
         voltage_channel,
         inter_wait_time,
         time_per_point,
@@ -606,7 +628,7 @@ class DependentAction(Action):
 
 
 class Scan(Action):
-    def __init__(self, scan_params, vsource, **kwargs):
+    def __init__(self, scan_params, vsource: teledyneT3PS, **kwargs):
         super().__init__(**kwargs)
         self.vsource = vsource
         self.scan_params = scan_params
@@ -663,7 +685,7 @@ class StepScan(Action):
     Partial scan in two locations. This is biolerplate-y
     """
 
-    def __init__(self, scan_params, vsource, **kwargs):
+    def __init__(self, scan_params, vsource: teledyneT3PS, **kwargs):
         super().__init__(**kwargs)
         self.vsource = vsource
         self.scan_params = scan_params
@@ -699,7 +721,7 @@ class Extremum(Action):
         integration_time,
         wait_time,
         change_rate,
-        vsource,
+        vsource: teledyneT3PS,
         init_voltage,
         data_name="prev_data",
         fine_grain_mode=False,
@@ -824,6 +846,8 @@ class Extremum(Action):
                 f"     {self.n}: Updating init voltage: {round(self.get_voltage(), 3)}"
             )
             self.vsource.setVoltage(self.channel, round(self.get_voltage(), 3))
+            if self.label != "default_label":
+                print(f"################################## Beginning: {self.label}")
             self.init = True
 
         response = self.event_list[self.cycle].evaluate(current_time, counts, **kwargs)
@@ -1118,17 +1142,17 @@ class Direction:
         if self.direction == 1:
             self.direction = -1
             print("from 1 to -1")
-            logger.info(f"     {self.n}: from 1 to -1")
+            logger.info(f"     {self.__class__.__name__}: from 1 to -1")
         else:
             self.direction = 1
             print("from -1 to 1")
-            logger.info(f"     {self.n}: from -1 to 1")
+            logger.info(f"     {self.__class__.__name__}: from -1 to 1")
         return self.direction
 
     def random(self):
         self.direction = random.choice([1, -1])
         print("random: ", self.direction)
-        logger.info(f"     {self.n}: Random: {self.direction}")
+        logger.info(f"     {self.__class__.__name__}: Random: {self.direction}")
         return self.direction
 
     def __call__(self):

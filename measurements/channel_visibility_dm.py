@@ -16,7 +16,73 @@ import logging
 from .user_input import UserInput
 
 
-class ChannelVisibility(Action):
+class Interferometer:
+    def __init__(self, path):
+        with open("./interferometer_resistance.json") as file:
+            data = json.load(file)
+        self.voltages = np.array(data["voltage"])
+        self.resistances = np.array(data["resistance"])
+        self.currents = self.voltages / self.resistances
+        self.powers = self.currents * self.voltages
+
+    def voltage_from_power(self, power: float) -> float:
+        voltage = float(np.interp(power, self.powers, self.voltages))
+        return voltage
+
+    def power_from_voltage(self, voltage: float) -> float:
+        power = float(np.interp(voltage, self.voltages, self.powers))
+        return power
+
+
+class DerivedVoltages(Action):
+    def __init__(
+        self,
+        minimum_1: Store,
+        minimum_2: Store,
+        derived_max: Store,
+        derived_90: Store,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.minimum_1 = minimum_1
+        self.minimum_2 = minimum_2
+        self.derived_max = derived_max
+        self.derived_90 = derived_90
+        self.intf = Interferometer("./interferometer_resistance.json")
+
+    def evaluate(self, current_time, counts, **kwargs):
+        min_power_1 = self.intf.power_from_voltage(self.minimum_1.get_val())
+        min_power_2 = self.intf.power_from_voltage(self.minimum_2.get_val())
+        derived_max_power = float(np.average([min_power_1, min_power_2]))
+        derived_90_power = float(np.average([min_power_1, derived_max_power]))
+
+        derived_90_voltage = self.intf.voltage_from_power(derived_90_power)
+        derived_max_voltage = self.intf.voltage_from_power(derived_max_power)
+        print(f"##### derived max voltage: {derived_max_voltage}")
+        print(f"##### derived 90 voltage: {derived_90_voltage}")
+
+        self.derived_max.set_val(derived_max_voltage)
+        self.derived_90.set_val(derived_90_voltage)
+
+        # this is a bad practice! If this method does not have a return value with the key "finished",
+        # then it breaks and it's hard to debug!!
+
+        # I think this could be solved with a decorator that would put in the "finished" if I forgot to
+        self.final_state = {
+            "state": "finished",
+            "name": self.__class__.__name__,
+            "derived_max_voltage": derived_max_voltage,
+            "dervied_90_voltage": derived_90_voltage,
+        }
+        return self.final_state
+
+
+class ChannelVisibilityDM(Action):
+    """
+    Channel visibility measurement that collects all data to derive a
+    density matrix at two powers
+    """
+
     def __init__(
         self,
         voltage_source,
@@ -24,7 +90,7 @@ class ChannelVisibility(Action):
         super().__init__()
 
         with open(
-            "./measurements/channel_visibility.yaml", "r", encoding="utf8"
+            "./measurements/channel_visibility_dm.yaml", "r", encoding="utf8"
         ) as stream:
             try:
                 params = yaml.safe_load(stream)
@@ -33,8 +99,12 @@ class ChannelVisibility(Action):
         params = params["channel_visibility"]
         print("######  DID YOU REMEMBER TO SET THE CORRECT FILE NAME IN THE YAML?")
         print("######  IS POLARIZATION MAXIMIZED?")
-        min_voltage = Store(voltage=params["minimum_voltage"])
+
+        min_voltage_1 = Store(voltage=params["minimum_voltage_1"])
+        min_voltage_2 = Store(voltage=params["minimum_voltage_2"])
         max_voltage = Store(voltage=params["maximum_voltage"])
+        derived_max = Store(voltage=0)  # to be updated later
+        derived_90 = Store(voltage=0)
 
         # set to medium power
         self.add_action(SetPower(params["scan_power"], voltage_source, 1))
@@ -42,32 +112,113 @@ class ChannelVisibility(Action):
         ####### MINIMUM 1 (phase=0 degree)
         ####### ##########################
         # set interferometer voltage to something near the minimum
-        self.add_action(SetVoltage(params["minimum_voltage"], voltage_source, 2))
+        self.add_action(SetVoltage(params["minimum_voltage_1"], voltage_source, 2))
         self.add_action(Wait(params["intf_stabilize_time"]))
 
         # scan for true minimum
         self.add_action(
             self.make_integration(
-                voltage_source, params["scan_extremum_min"], min_voltage
+                voltage_source,
+                params["scan_extremum_min"],
+                min_voltage_1,
+                label="min scan 1",
             )
         )
-        # now, min_voltage store should contain decent minimum voltage
+        # now, min_voltage_1 store should contain decent minimum voltage
 
         # get fringe min data for low-power visibility
         self.add_action(SetPower(params["low_power"], voltage_source, 1))
         self.add_action(Wait(params["power_stabilize_time"]))
         self.add_action(
-            self.make_integration(voltage_source, params["extremum_min"], min_voltage)
+            self.make_integration(
+                voltage_source,
+                params["extremum_min"],
+                min_voltage_1,
+                label="min integrate low power",
+            )
         )
 
         # get fringe min data for high-power visibility
         self.add_action(SetPower(params["high_power"], voltage_source, 1))
         self.add_action(Wait(params["power_stabilize_time"]))
         self.add_action(
-            self.make_integration(voltage_source, params["extremum_min"], min_voltage)
+            self.make_integration(
+                voltage_source,
+                params["extremum_min"],
+                min_voltage_1,
+                label="min integrate high power",
+            )
         )
 
         # back to scanning power
+        self.add_action(SetPower(params["scan_power"], voltage_source, 1))
+
+        ####### ########################## begin new part
+        ####### ##########################
+        ####### MINIMUM 2 (phase=360 degree)
+        # set interferometer voltage to something near the minimum
+        self.add_action(SetVoltage(params["minimum_voltage_2"], voltage_source, 2))
+        self.add_action(Wait(params["intf_stabilize_time"]))
+
+        # scan for true minimum
+        self.add_action(
+            self.make_integration(
+                voltage_source,
+                params["scan_extremum_min"],
+                min_voltage_2,
+                label="min scan 2",
+            )
+        )
+        # now, min_voltage_2 store should contain decent minimum voltage
+
+        self.add_action(
+            DerivedVoltages(min_voltage_1, min_voltage_2, derived_max, derived_90)
+        )
+
+        # go to the min-defined max
+        self.add_action(SetVoltage(derived_max, voltage_source, 2))
+        self.add_action(SetPower(params["low_power"], voltage_source, 1))
+        self.add_action(Wait(params["intf_stabilize_time"]))
+        self.add_action(
+            ValueIntegrateExtraData(
+                10000,
+                3,
+                progress_bar=True,
+                label="min-defined max integration low power",
+            )
+        )
+        self.add_action(SetPower(params["high_power"], voltage_source, 1))
+        self.add_action(Wait(params["power_stabilize_time"]))
+        self.add_action(
+            ValueIntegrateExtraData(
+                10000,
+                3,
+                progress_bar=True,
+                label="min-defined max integration high power",
+            )
+        )
+
+        # go to the min-defined 90 degree
+        self.add_action(SetVoltage(derived_90, voltage_source, 2))
+        self.add_action(SetPower(params["low_power"], voltage_source, 1))
+        self.add_action(Wait(params["intf_stabilize_time"]))
+        self.add_action(
+            ValueIntegrateExtraData(
+                5000, 3, progress_bar=True, label="90 degree integration low power"
+            )
+        )
+        self.add_action(SetPower(params["high_power"], voltage_source, 1))
+        self.add_action(Wait(params["power_stabilize_time"]))
+        self.add_action(
+            ValueIntegrateExtraData(
+                5000, 3, progress_bar=True, label="90 degree integration high power"
+            )
+        )
+
+        ####### ########################## end new part
+        ####### ##########################
+
+        # back to scan power
         self.add_action(SetPower(params["scan_power"], voltage_source, 1))
 
         ####### MAXIMUM 1 (phase=180 degree)
@@ -106,7 +257,7 @@ class ChannelVisibility(Action):
         self.add_action(Wait(5))
         self.enable_save(save_name=params["output_file_name"])
 
-    def make_integration(self, voltage_source, params, voltage):
+    def make_integration(self, voltage_source, params, voltage, label="default_label"):
         integration = Extremum(
             params["type"],
             params["int_time"],
@@ -118,6 +269,7 @@ class ChannelVisibility(Action):
             low_res_steps=params["low_res_steps"],
             steps=params["steps"],
             int_type=params["int_type"],
+            label=label,
         )
         integration.add_action(
             ValueIntegrateExtraData(
@@ -130,20 +282,18 @@ class ChannelVisibility(Action):
         integration.update_start_iteration(3)
         return integration
 
+    # P = IV = (V/R)V = (V^2)/R(V)
+    # P*R(V) = V^2
+    # np.sqrt(P*R(V)) = V
 
-# def intf_power_from_voltage():
+    # P = IV = (V^2)/R(V)
+
+    # V = IR
 
 
-def intf_voltage_from_power(power: float) -> float:
-    with open("./interferometer_resistance.json") as file:
-        data = json.load(file)
-        voltages = data["voltage"]
-        resistances = data["resistance"]
-        resistance = float(np.interp(power, voltages, resistances))
-        # P = (V^2)/R
-        return float(np.sqrt(power * resistance))
+# tomorrow you should check to see that the sent voltage and the measured voltage are really close.
+# Then don't even worry about measuring the current in the extremum method. Just assume phase is
+# linear with power, and you can convert power to voltage and the inverse of that with your
+# resistance curve.
 
-    # tomorrow you should check to see that the sent voltage and the measured voltage are really close.
-    # Then don't even worry about measuring the current in the extremum method. Just assume phase is
-    # linear with power, and you can convert power to voltage and the inverse of that with your
-    # resistance curve.
+# And figure out what is wrong with git push
