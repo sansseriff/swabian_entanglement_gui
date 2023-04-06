@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from .pump_power_manager import PumpPowerManager
 import logging
 from .user_input import UserInput
+from typing import Type
 
 
 class Interferometer:
@@ -44,6 +45,7 @@ class DerivedVoltages(Action):
         **kwargs,
     ):
         super().__init__(**kwargs)
+        # why isn't this assigned a default label?
         self.minimum_1 = minimum_1
         self.minimum_2 = minimum_2
         self.derived_max = derived_max
@@ -68,11 +70,13 @@ class DerivedVoltages(Action):
         # then it breaks and it's hard to debug!!
 
         # I think this could be solved with a decorator that would put in the "finished" if I forgot to
+        # at the very least I could make this an inheritable dataclass...
         self.final_state = {
             "state": "finished",
             "name": self.__class__.__name__,
             "derived_max_voltage": derived_max_voltage,
-            "dervied_90_voltage": derived_90_voltage,
+            "derived_90_voltage": derived_90_voltage,
+            "label": self.label,
         }
         return self.final_state
 
@@ -179,41 +183,74 @@ class ChannelVisibilityDM(Action):
         self.add_action(SetVoltage(derived_max, voltage_source, 2))
         self.add_action(SetPower(params["low_power"], voltage_source, 1))
         self.add_action(Wait(params["intf_stabilize_time"]))
+
         self.add_action(
-            ValueIntegrateExtraData(
-                10000,
-                3,
-                progress_bar=True,
+            SimpleSet(
+                ValueIntegrateExtraData,
+                [10000, 3],  # parameters for ValueIntegrateExtraData
+                5,
                 label="min-defined max integration low power",
             )
         )
+        # self.add_action(
+        #     ValueIntegrateExtraData(
+        #         10000,
+        #         3,
+        #         progress_bar=True,
+        #         label="min-defined max integration low power",
+        #     )
+        # )
         self.add_action(SetPower(params["high_power"], voltage_source, 1))
         self.add_action(Wait(params["power_stabilize_time"]))
         self.add_action(
-            ValueIntegrateExtraData(
-                10000,
-                3,
-                progress_bar=True,
+            SimpleSet(
+                ValueIntegrateExtraData,
+                [10000, 3],
+                5,
                 label="min-defined max integration high power",
             )
         )
+        # self.add_action(
+        #     ValueIntegrateExtraData(
+        #         10000,
+        #         3,
+        #         progress_bar=True,
+        #         label="min-defined max integration high power",
+        #     )
+        # )
 
         # go to the min-defined 90 degree
         self.add_action(SetVoltage(derived_90, voltage_source, 2))
         self.add_action(SetPower(params["low_power"], voltage_source, 1))
         self.add_action(Wait(params["intf_stabilize_time"]))
         self.add_action(
-            ValueIntegrateExtraData(
-                5000, 3, progress_bar=True, label="90 degree integration low power"
+            SimpleSet(
+                ValueIntegrateExtraData,
+                [5000, 3],
+                5,
+                label="90 degree integration low power",
             )
         )
+        # self.add_action(
+        #     ValueIntegrateExtraData(
+        #         5000, 3, progress_bar=True, label="90 degree integration low power"
+        #     )
+        # )
         self.add_action(SetPower(params["high_power"], voltage_source, 1))
         self.add_action(Wait(params["power_stabilize_time"]))
         self.add_action(
-            ValueIntegrateExtraData(
-                5000, 3, progress_bar=True, label="90 degree integration high power"
+            SimpleSet(
+                ValueIntegrateExtraData,
+                [5000, 3],
+                5,
+                label="90 degree integration high power",
             )
         )
+        # self.add_action(
+        #     ValueIntegrateExtraData(
+        #         5000, 3, progress_bar=True, label="90 degree integration high power"
+        #     )
+        # )
 
         ####### ########################## end new part
         ####### ##########################
@@ -239,14 +276,24 @@ class ChannelVisibilityDM(Action):
         self.add_action(SetPower(params["low_power"], voltage_source, 1))
         self.add_action(Wait(params["power_stabilize_time"]))
         self.add_action(
-            self.make_integration(voltage_source, params["extremum_max"], max_voltage)
+            self.make_integration(
+                voltage_source,
+                params["extremum_max"],
+                max_voltage,
+                label="grad-defined max integration low power",
+            )
         )
 
         # get max data for high-power visibility
         self.add_action(SetPower(params["high_power"], voltage_source, 1))
         self.add_action(Wait(params["power_stabilize_time"]))
         self.add_action(
-            self.make_integration(voltage_source, params["extremum_max"], max_voltage)
+            self.make_integration(
+                voltage_source,
+                params["extremum_max"],
+                max_voltage,
+                label="grad-defined max integration high power",
+            )
         )
 
         # this all took about 1 hour 23 minutes with low power 1.2, high power 3.5

@@ -2,12 +2,14 @@ channel_visibility:
   scan_power: 3.0
   low_power: 1.2 #1.2
   high_power: 4.06
+  power_step: 0.15
   intf_stabilize_time: 90
   minimum_voltage_1: 2.58
   minimum_voltage_2: 3.82
   maximum_voltage: 1.60
   power_stabilize_time: 30 
-  output_file_name: "channel_visibility_dm_42_52.json"
+  output_file_name: "shg_scan_dm_35_59.json"
+
 
   scan_extremum_min:
     type: "min"
@@ -45,7 +47,7 @@ channel_visibility:
     steps: 5
     int_type: "custom"
 
-    minimum_counts: 600
+    minimum_counts: 30 # 600
     minimum_integrate_evaluations: 10
 
   extremum_max:

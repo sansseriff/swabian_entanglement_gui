@@ -11,6 +11,8 @@ from tqdm import tqdm
 from typing import Union
 from snspd_measure.inst.teledyneT3PS import teledyneT3PS
 
+from typing import Type
+
 """
 The action framework is used to build and specify measurements in a composable and modular fashion so that they
 are carried out step by step in the programs main even loop. 
@@ -35,10 +37,12 @@ class Action:
         self.save = False
         self.environment = {}  # used for accessing persistent data
         self.n = self.__class__.__name__
-        logger.debug(f"Initializing Action: {self.n}")
         self.label = "default_label"
         if kwargs.get("label"):
             self.label = kwargs.get("label")
+            logger.info(f"Initializing Action: {self.n} with label: {self.label}")
+        else:
+            logger.info(f"Initializing Action: {self.n}")
 
     def add_action(self, object):
         self.event_list.append(object)
@@ -131,6 +135,13 @@ class Action:
 
     def pretty_print(self, data):
         print(json.dumps(data, sort_keys=True, indent=4))
+
+
+class SimpleSet(Action):
+    def __init__(self, set_action: Type[Action], params: list, number: int, **kwargs):
+        super().__init__(**kwargs)
+        for i in range(number):
+            self.add_action(set_action(*params))
 
 
 @dataclass

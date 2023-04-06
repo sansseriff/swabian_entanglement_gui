@@ -62,7 +62,7 @@ from SocketClient import SocketClient
 from awgClient import AWGClient
 from measurements.visibility_scan_minimize import VisibilityScanMinimize
 from measurements.user_input import TextDialog
-from measurements.shg_scan import SHGScanAutoPower
+from measurements.shg_scan import SHGScanAutoPower, DensityMatrixSHGScan
 from measurements.pump_power_manager import PumpPowerManager
 from measurements.fast_minimum import FastMinimum
 from measurements.measurement_management import Store
@@ -70,6 +70,7 @@ from measurement_list import MeasurementList
 from measurements.channel_visibility import ChannelVisibility
 from measurements.channel_visibility_dm import ChannelVisibilityDM
 from measurements.voltage_current_scan import VoltageCurrentScan
+from measurements.long_term_minimize import ContinuousScanMin, ConstantMin
 
 import logging
 
@@ -208,6 +209,11 @@ class CoincidenceExample(QMainWindow):
         self.measurement_list.add_measurement(
             SHGScanAutoPower, (self, self.Vsource), "shg scan"
         )
+
+        self.measurement_list.add_measurement(
+            DensityMatrixSHGScan, self.Vsource, "shg scan dm"
+        )
+
         self.measurement_list.add_measurement(
             FastMinimum,
             (self, self.Vsource, self.start_voltage_store),
@@ -221,6 +227,12 @@ class CoincidenceExample(QMainWindow):
         )
         self.measurement_list.add_measurement(
             VoltageCurrentScan, self.Vsource, "voltage current scan"
+        )
+        self.measurement_list.add_measurement(
+            ContinuousScanMin, self.Vsource, "continuous long min"
+        )
+        self.measurement_list.add_measurement(
+            ConstantMin, self.Vsource, "constant long min"
         )
 
     def initVsource(self):
@@ -1045,21 +1057,21 @@ class CoincidenceExample(QMainWindow):
     def saveEntData(self):
         pass
 
-    def zoom(self, delay_1, delay_2, bind_width, iter):
-        self.ui.delayA.setValue(delay_1)
-        self.ui.delayB.setValue(delay_2)
-        self.ui.delayC.setValue(0)
-        self.ui.delayD.setValue(0)
-        self.ui.correlationBinwidth.setValue(bind_width)
-        self.ui.correlationBins.setValue(36000)  # that's 300 ns
+    # def zoom(self, delay_1, delay_2, bind_width, iter):
+    #     self.ui.delayA.setValue(delay_1)
+    #     self.ui.delayB.setValue(delay_2)
+    #     self.ui.delayC.setValue(0)
+    #     self.ui.delayD.setValue(0)
+    #     self.ui.correlationBinwidth.setValue(bind_width)
+    #     self.ui.correlationBins.setValue(36000)  # that's 300 ns
 
-        if iter > 1:
-            # recursive
-            return offset + self.zoom(
-                smaller_delay_1, smaller_delay_2, smaller_bin_width, iter - 1
-            )
-        if iter == 1:
-            return offset
+    #     if iter > 1:
+    #         # recursive
+    #         return offset + self.zoom(
+    #             smaller_delay_1, smaller_delay_2, smaller_bin_width, iter - 1
+    #         )
+    #     if iter == 1:
+    #         return offset
 
     def zoomInOnPeak(self):
         # this does not seem to work at high count rate
