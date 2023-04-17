@@ -1,0 +1,6 @@
+start_voltage: 2.5 # 1
+end_voltage: 2.85 # 4.015
+voltage_step: 0.005 # 0.015
+wait_time: 40       # 10
+integration_time: 90 # 90
+output_file_name: "fringe_scan_min_39_55.json"

@@ -15,7 +15,7 @@ from typing import Type
 
 """
 The action framework is used to build and specify measurements in a composable and modular fashion so that they
-are carried out step by step in the programs main even loop. 
+are carried out step by step in the program's main even loop. 
 
 
 Actions can contain other actions, 
@@ -55,6 +55,7 @@ class Action:
             to deactivate itself, but it should not delete itself"""
         responses = []
         while True:
+            # 'check if finished' loop
             response = self.event_list[0].evaluate(current_time, counts, **kwargs)
             responses.append(response)
             if response["state"] == "abort":
@@ -62,7 +63,7 @@ class Action:
                 print("aborting ", self.n)
                 return {"state": "abort", "name": self.n}
             if response["state"] != "finished":
-                break
+                break  # break from the 'check if finished' loop and return waiting state (at the bottom)
             else:
                 response.pop("state", None)
                 self.results.append(response)
@@ -120,11 +121,7 @@ class Action:
         self.save = True
 
     def current_value(self, value):
-        # if (type(value) is int) or (type(value) is float):
-        #     return value
-        # if type(value) is Store:
-        #     assert (type(value.get_val()) is int) or (type(value.get_val()) is float)
-        #     return value.get_val()
+        # a common interface for Stores and numbers
         if type(value) is Store:
             return value.get_val()
         else:
@@ -146,9 +143,10 @@ class SimpleSet(Action):
 
 @dataclass
 class Store:
-    __allowed = ("voltage", "counts", "power", "name")
+    __allowed = ("voltage", "counts", "power", "name", "time")
 
-    def __init__(self, **kwargs):
+    def __init__(self, auto_convert=False, **kwargs):
+        self.auto_convert = auto_convert
         assert len(kwargs.items()) == 1
         for k, v in kwargs.items():
             self.key = k
@@ -168,6 +166,8 @@ class Store:
 
     def set_val(self, value):
         if self.number:
+            if self.auto_convert:
+                value = float(value)
             assert isinstance(value, (int, float))
             self.__dict__[self.key] = value
         else:
@@ -251,7 +251,7 @@ class SetPower(Action):
             "state": "finished",
             "name": self.n,
             "label": self.label,
-            "result": result,
+            "results": result,
         }
         return self.final_state
 
@@ -313,13 +313,14 @@ class Wait(Action):
 
 
 class Integrate(Action):
-    def __init__(self, int_time, **kwargs):
+    def __init__(self, int_time, continuous=False, **kwargs):
         super().__init__(**kwargs)
         self.int_time = int_time
         self.counts = 0
         self.coincidences = 0
         self.hist_1 = None
         self.hist_2 = None
+        self.continuous = continuous
 
     def evaluate(self, current_time, counts, **kwargs):
         logger.debug(f"Evaluating Action: {self.n}")
@@ -336,18 +337,28 @@ class Integrate(Action):
             self.coincidences += kwargs.get("coincidences")
             self.hist_1 += kwargs.get("hist_1")
             self.hist_2 += kwargs.get("hist_2")
+            # print("counts: ", counts)
 
-        if (current_time - self.init_time) > self.int_time:
+        if (current_time - self.init_time) > self.current_value(self.int_time):
             self.delta_time = current_time - self.init_time
             logger.info(
                 f"     {self.n}: Finishing. Time Integrating: {round(self.delta_time,3)}"
             )
             singles_rate_1 = float(np.sum(self.hist_1) / self.delta_time)
             singles_rate_2 = float(np.sum(self.hist_2) / self.delta_time)
+
+            center_coinc_rate = float(self.counts / self.delta_time)
             coincidence_rate = self.coincidences / self.delta_time
-            print("singles_rate_1: ", round(singles_rate_1, 3))
-            print("singles_rate_2: ", round(singles_rate_2, 3))
-            print("coincidence_rate: ", round(coincidence_rate, 3))
+            print()
+            print("     singles_rate_1: ", round(singles_rate_1, 3))
+            print("     singles_rate_2: ", round(singles_rate_2, 3))
+            print("     coincidence_rate: ", round(coincidence_rate, 3))
+            print("     center bin coinc rate: ", round(center_coinc_rate, 3))
+
+            if self.continuous:
+                self.reset()
+                return {"state": "finished_continuous"}
+                # Just used for diagnostics, not saving data. So don't return any
 
             self.final_state = {
                 "state": "finished",

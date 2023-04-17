@@ -19,7 +19,7 @@ class ContinuousScanMin(Action):
             2.58,
             fine_grain_mode=True,
             low_res_steps=0,
-            steps=100,
+            steps=350,
             label="long_minimum_scan",
         )
         minimize.update_start_iteration(3)
@@ -51,7 +51,7 @@ class ConstantMin(Action):
         minimize.update_start_iteration(3)
         self.add_action(minimize)
 
-        for i in range(90):
-            self.add_action(Wait(0.5))
+        for i in range(350):
+            # self.add_action(Wait(0.5))
             self.add_action(Integrate(64))  # not sure yet
         self.enable_save("constant_minimum.json")

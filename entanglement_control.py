@@ -71,6 +71,8 @@ from measurements.channel_visibility import ChannelVisibility
 from measurements.channel_visibility_dm import ChannelVisibilityDM
 from measurements.voltage_current_scan import VoltageCurrentScan
 from measurements.long_term_minimize import ContinuousScanMin, ConstantMin
+from measurements.fringe_scan import FringeScan
+from measurements.continuous_integrate import ContinuousIntegrate
 
 import logging
 
@@ -234,6 +236,8 @@ class CoincidenceExample(QMainWindow):
         self.measurement_list.add_measurement(
             ConstantMin, self.Vsource, "constant long min"
         )
+        self.measurement_list.add_measurement(FringeScan, self.Vsource, "fringe scan")
+        self.measurement_list.add_measurement(ContinuousIntegrate, self, "forever integrate")
 
     def initVsource(self):
         self.Vsource = teledyneT3PS("10.7.0.147", port=1026)

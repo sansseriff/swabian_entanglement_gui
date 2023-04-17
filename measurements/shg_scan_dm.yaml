@@ -2,33 +2,33 @@ channel_visibility:
   scan_power: 3.0
   low_power: 1.2 #1.2
   high_power: 4.06
-  power_step: 0.15
+  power_step: 0.15 # 0.15
   intf_stabilize_time: 90
   minimum_voltage_1: 2.58
   minimum_voltage_2: 3.82
   maximum_voltage: 1.60
   power_stabilize_time: 30 
-  output_file_name: "shg_scan_dm_35_59.json"
+  output_file_name: "s_shg_scan_dm_35_59.json"
 
 
   scan_extremum_min:
     type: "min"
     int_time: 0.5
     wait_time: 1
-    change_rate: 0.05
+    change_rate: 0.03
     fine_grain_mode: true
     low_res_steps: 0
     steps: 14
     int_type: "custom"
 
-    minimum_counts: 600 
+    minimum_counts: 1000 
     minimum_integrate_evaluations: 10
 
   scan_extremum_max:
     type: "max"
     int_time: 0.25
     wait_time: 4
-    change_rate: 0.2
+    change_rate: 0.15
     fine_grain_mode: true
     low_res_steps: 0
     steps: 14
@@ -41,23 +41,23 @@ channel_visibility:
     type: "min"
     int_time: 0.5
     wait_time: 1
-    change_rate: 0.05
+    change_rate: 0.03
     fine_grain_mode: true
     low_res_steps: 0
-    steps: 5
+    steps: 8
     int_type: "custom"
 
-    minimum_counts: 30 # 600
+    minimum_counts: 1000 # 600
     minimum_integrate_evaluations: 10
 
   extremum_max:
     type: "max"
     int_time: 0.25
     wait_time: 4
-    change_rate: 0.2
+    change_rate: 0.15
     fine_grain_mode: true
     low_res_steps: 0
-    steps: 5
+    steps: 8
     int_type: "custom"
 
     minimum_counts: 20000 

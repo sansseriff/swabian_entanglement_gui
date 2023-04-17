@@ -1,7 +1,7 @@
 Channels:
   ChA:
     channel: -1
-    trigger: -.031 # volt
+    trigger: -.046 # volt
     delay: -3875 # 5993 # ns was 36153 before 5/5/2022
     # 26372 on 5.26.2022
     # 54,39: 39250
@@ -11,7 +11,7 @@ Channels:
 
   ChB:
     channel: -5
-    trigger: -.041
+    trigger: -.051
     delay: 4120 # -5735 # was -35954 before 5/5/2022
     # -26050 on 5/26/2022
     # 54,39: -39580

@@ -161,7 +161,10 @@ class ScanStep(Action):
         self.add_action(Wait(30))
         self.add_action(
             make_integration(
-                voltage_source, params_extreme, voltage_store, extremum_mode
+                voltage_source,
+                params_extreme,
+                voltage_store,
+                extremum_mode=extremum_mode,
             )
         )
 
@@ -184,6 +187,12 @@ class PowerRamp(Action):
                     voltage_source, power, params_extreme, voltage_store, extremum_mode
                 )
             )
+        self.add_action(
+            SetPower(1.5, voltage_source, 1)
+        )  # this a hack so that the save can finish before the program crashes...
+        # this is why I should be using threads!!
+        # but would threads solve this, because of the GIL?
+        # use multiprocessing instead...
 
 
 class DensityMatrixSHGScan(Action):
@@ -224,7 +233,7 @@ class DensityMatrixSHGScan(Action):
                 voltage_source,
                 params["scan_extremum_min"],
                 min_voltage_1,
-                label="min scan 1",
+                label="min_scan_1",
                 extremum_mode=True,
             )
         )
@@ -235,20 +244,23 @@ class DensityMatrixSHGScan(Action):
         # integrations at a list of powers, continuing to use the gradient
         # ascent/descent extremum method.
         ###########
-        self.add_action(
-            PowerRamp(
-                voltage_source,
-                powers,
-                params["extremum_min"],
-                min_voltage_1,
-                extremum_mode=True,
-            )
+
+        min_ramp = PowerRamp(
+            voltage_source,
+            powers,
+            params["extremum_min"],
+            min_voltage_1,
+            extremum_mode=True,
+            label="min_power_ramp",
         )
+        min_ramp.enable_save("s_min_power_ramp.json")
+        self.add_action(min_ramp)
 
         ########### STEP 3
         # Find another phase minimum at a different interferometer power/voltage.
         # Using an estimate in params["minimum_voltage_2"].
         ###########
+        self.add_action(Wait(2))
         self.add_action(SetPower(params["scan_power"], voltage_source, 1))
         self.add_action(SetVoltage(params["minimum_voltage_2"], voltage_source, 2))
         self.add_action(Wait(params["intf_stabilize_time"]))
@@ -259,7 +271,7 @@ class DensityMatrixSHGScan(Action):
                 voltage_source,
                 params["scan_extremum_min"],
                 min_voltage_2,
-                label="min scan 2",
+                label="min_scan_2",
                 extremum_mode=True,
             )
         )
@@ -287,16 +299,17 @@ class DensityMatrixSHGScan(Action):
         self.add_action(Wait(params["intf_stabilize_time"]))
 
         # ramp through powers at the min defined max
-        self.add_action(
-            PowerRamp(
-                voltage_source,
-                powers,
-                params["extremum_max"],
-                derived_max,
-                extremum_mode=False,
-            )
-        )
 
+        max_derived_ramp = PowerRamp(
+            voltage_source,
+            powers,
+            params["extremum_max"],
+            derived_max,
+            extremum_mode=False,
+        )
+        max_derived_ramp.enable_save("s_max_derived_power_ramp.json")
+        self.add_action(max_derived_ramp)
+        self.add_action(Wait(2))
         # back to scan power
         self.add_action(SetPower(params["scan_power"], voltage_source, 1))
 
@@ -310,16 +323,17 @@ class DensityMatrixSHGScan(Action):
         self.add_action(Wait(params["intf_stabilize_time"]))
 
         # ramp through powers at the min defined 90 degree point
-        self.add_action(
-            PowerRamp(
-                voltage_source,
-                powers,
-                params["extremum_max"],
-                derived_90,
-                extremum_mode=False,
-            )
-        )
 
+        d90_power_ramp = PowerRamp(
+            voltage_source,
+            powers,
+            params["extremum_max"],
+            derived_90,
+            extremum_mode=False,
+        )
+        d90_power_ramp.enable_save("s_d90_power_ramp.json")
+        self.add_action(d90_power_ramp)
+        self.add_action(Wait(2))
         self.add_action(SetPower(params["scan_power"], voltage_source, 1))
 
         ########### STEP 6
@@ -332,18 +346,21 @@ class DensityMatrixSHGScan(Action):
         self.add_action(Wait(params["intf_stabilize_time"]))
 
         # ramp through powers
-        self.add_action(
-            PowerRamp(
-                voltage_source,
-                powers,
-                params["extremum_max"],
-                max_voltage,
-                extremum_mode=True,
-            )
-        )
 
+        max_ramp = PowerRamp(
+            voltage_source,
+            powers,
+            params["extremum_max"],
+            max_voltage,
+            extremum_mode=True,
+        )
+        max_ramp.enable_save("s_max_power_ramp.json")
+        self.add_action(max_ramp)
+        self.add_action(Wait(2))
         self.add_action(SetPower(1.2, voltage_source, 1))
         self.add_action(Wait(4))
+
+        # this might crash the program?
         self.enable_save(params["output_file_name"])
 
 
