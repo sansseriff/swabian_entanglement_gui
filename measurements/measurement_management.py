@@ -56,7 +56,11 @@ class Action:
         responses = []
         while True:
             # 'check if finished' loop
-            response = self.event_list[0].evaluate(current_time, counts, **kwargs)
+            try:
+                response = self.event_list[0].evaluate(current_time, counts, **kwargs)
+            except IndexError:
+                print("Index Error. Did you add an action with a correction __init__ function?")
+                return 1
             responses.append(response)
             if response["state"] == "abort":
                 self.pass_state = True
@@ -112,7 +116,15 @@ class Action:
 
         # self.save_name could be a Store
         logger.info(f"     {self.n}: Starting save")
-        with open(self.current_value(self.save_name), "wb") as file:
+
+        save_str = self.current_value(self.save_name)
+        if isinstance(save_str, str):
+            if save_str[-5:] != ".json":
+                save_str += ".json"
+        else:
+            save_str = "default_save_name.json"
+            print("problem with save name encountered. Saving as 'default_save_name.json'")
+        with open(save_str, "wb") as file:
             file.write(orjson.dumps(self.final_state))
         logger.info(f"     {self.n}: Ending save")
 
@@ -313,7 +325,7 @@ class Wait(Action):
 
 
 class Integrate(Action):
-    def __init__(self, int_time, continuous=False, **kwargs):
+    def __init__(self, int_time, continuous=False, include_histograms = False, **kwargs):
         super().__init__(**kwargs)
         self.int_time = int_time
         self.counts = 0
@@ -321,13 +333,24 @@ class Integrate(Action):
         self.hist_1 = None
         self.hist_2 = None
         self.continuous = continuous
+        self.min_hist_length = 1000
+        self.include_histograms = include_histograms
 
     def evaluate(self, current_time, counts, **kwargs):
         logger.debug(f"Evaluating Action: {self.n}")
         if self.init_time == -1:
             self.init_time = current_time
-            self.hist_1 = np.zeros_like(kwargs.get("hist_1"))
-            self.hist_2 = np.zeros_like(kwargs.get("hist_2"))
+
+            # fix some varying length histograms (kind of a bad hack)
+            hist_1 = kwargs.get("hist_1")
+            hist_2 = kwargs.get("hist_2")
+            if len(hist_1) < self.min_hist_length:
+                self.min_hist_length = len(hist_1)
+            if len(hist_2) < self.min_hist_length:
+                self.min_hist_length = len(hist_2)
+
+            self.hist_1 = np.zeros_like(hist_1[: self.min_hist_length])
+            self.hist_2 = np.zeros_like(hist_2[: self.min_hist_length])
             if self.label != "default_label":
                 print(f"################################## Beginning: {self.label}")
             return {"state": "integrating"}
@@ -335,8 +358,17 @@ class Integrate(Action):
             # only add counts for evaluations after the init evaluation
             self.counts = self.counts + counts  # add counts
             self.coincidences += kwargs.get("coincidences")
-            self.hist_1 += kwargs.get("hist_1")
-            self.hist_2 += kwargs.get("hist_2")
+
+            # fix some varying length histograms
+            hist_1 = kwargs.get("hist_1")
+            hist_2 = kwargs.get("hist_2")
+            if len(hist_1) < self.min_hist_length:
+                self.min_hist_length = len(hist_1)
+            if len(hist_2) < self.min_hist_length:
+                self.min_hist_length = len(hist_2)
+
+            self.hist_1 += hist_1[: self.min_hist_length]
+            self.hist_2 += hist_2[: self.min_hist_length]
             # print("counts: ", counts)
 
         if (current_time - self.init_time) > self.current_value(self.int_time):
@@ -371,6 +403,10 @@ class Integrate(Action):
                 "singles_rate_2": singles_rate_2,
                 "coincidence_rate": coincidence_rate,
             }
+            if self.include_histograms:
+                self.final_state["singles_hist_1"] = self.hist_1.tolist()
+                self.final_state["singles_hist_2"] = self.hist_2.tolist()
+
             return self.final_state
         return {"state": "integrating"}
 

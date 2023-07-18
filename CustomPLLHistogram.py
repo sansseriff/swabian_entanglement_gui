@@ -40,6 +40,10 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         self.prop = prop
         self.clock0 = 0
         self.period = 1  # 12227788.110837
+
+        self.prev_raw_1 = 0
+        self.prev_raw_2 = 0
+
         self.phi_old = 0
         self.init = 1
         self.max_bins = n_bins
@@ -48,6 +52,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         self.clock_idx = 0
         self.hist_1_idx = 0
         self.hist_2_idx = 0
+
         self.coinc_idx = 0
         self.full_coinc_idx = 0
         self.coincidence = 0
@@ -90,16 +95,23 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 pclocks = self.lclock_data[: self.clock_idx].copy()
                 hist_1_tags = self.hist_1_tags_data[: self.hist_1_idx].copy()
                 hist_2_tags = self.hist_2_tags_data[: self.hist_2_idx].copy()
+                diff_1 = self.diff_1_data[:self.hist_1_idx].copy()
+                diff_2 = self.diff_2_data[:self.hist_2_idx].copy()
+
+
                 coinc_1 = self.coinc_1[: self.coinc_idx].copy()
                 coinc_2 = self.coinc_2[: self.coinc_idx].copy()
                 full_coinc_1 = self.full_coinc_1[: self.full_coinc_idx].copy()
                 full_coinc_2 = self.full_coinc_2[: self.full_coinc_idx].copy()
+
+                
                 self.old_clock_start = self.clock_data[0]
                 coincidence = self.coincidence
 
                 self.clock_idx = 0
                 self.hist_1_idx = 0
                 self.hist_2_idx = 0
+
                 self.coinc_idx = 0
                 self.full_coinc_idx = 0
                 self.coincidence = 0
@@ -116,6 +128,9 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                     full_coinc_1,
                     full_coinc_2,
                     coincidence,
+                    diff_1,
+                    diff_2,
+                    round(self.period/50000,6)
                 )
             else:
                 print("nope")
@@ -129,12 +144,15 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         self.lclock_data_dec = np.zeros(
             (self.max_bins,), dtype=np.float64
         )  # decimal component of clock0
-        self.hist_1_tags_data = np.zeros((self.max_bins,), dtype=np.float64)
+        
         self.full_coinc_1 = np.zeros((self.max_bins,), dtype=np.float64)
         self.full_coinc_2 = np.zeros((self.max_bins,), dtype=np.float64)
         self.coinc_1 = np.zeros((self.max_bins,), dtype=np.float64)
         self.coinc_2 = np.zeros((self.max_bins,), dtype=np.float64)
+        self.hist_1_tags_data = np.zeros((self.max_bins,), dtype=np.float64)
         self.hist_2_tags_data = np.zeros((self.max_bins,), dtype=np.float64)
+        self.diff_1_data = np.zeros((self.max_bins,), dtype=np.float64)
+        self.diff_2_data = np.zeros((self.max_bins,), dtype=np.float64)
 
     def on_start(self):
         # The lock is already acquired within the backend.
@@ -153,8 +171,12 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         clock_data,
         lclock_data,
         lclock_data_dec,
-        hist_1_tags_data,
-        hist_2_tags_data,
+        hist_1_tags_data: np.ndarray,
+        hist_2_tags_data: np.ndarray,
+        diff_1_data: np.ndarray, # used for jitterate analysis
+        diff_2_data: np.ndarray,
+        prev_raw_1: int, # used for jitterate analysis
+        prev_raw_2: int,
         coinc_1,
         coinc_2,
         full_coinc_1,
@@ -298,6 +320,10 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                         buffer_cycle = minor_cycle
 
                     if tag["channel"] == data_channel_1:
+                        diff = tag["time"] - prev_raw_1
+                        prev_raw_1 = tag["time"]
+                        diff_1_data[hist_1_idx] = diff # time walk
+
                         hist_1_tags_data[hist_1_idx] = hist_tag
                         hist_1_idx += 1
 
@@ -329,6 +355,10 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                                 center_buffer_cycle = minor_cycle
 
                     if tag["channel"] == data_channel_2:
+                        diff = tag["time"] - prev_raw_2 # time walk
+                        prev_raw_2 = tag["time"] # time walk
+                        diff_2_data[hist_2_idx] = diff # time walk
+
                         hist_2_tags_data[hist_2_idx] = hist_tag
                         hist_2_idx += 1
 
@@ -375,13 +405,15 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             clock_idx,
             hist_1_idx,
             hist_2_idx,
+            prev_raw_1,
+            prev_raw_2,
             coinc_idx,
             full_coinc_idx,
             error,
             q,
             cycle,
             coincidence,
-        )
+            )
 
     def process(self, incoming_tags, begin_time, end_time):
         """
@@ -406,6 +438,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         """
         # maybe the jit function could change the memory location of that returned ints? So you need to pass them?
         # but numpy arrays are just pointers, and the class already has those. No need to pass them back.
+
         (
             self.clock0,
             self.period,
@@ -414,6 +447,8 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             self.clock_idx,
             self.hist_1_idx,
             self.hist_2_idx,
+            self.prev_raw_1,
+            self.prev_raw_2,
             self.coinc_idx,
             self.full_coinc_idx,
             self.error,
@@ -427,6 +462,10 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             self.lclock_data_dec,
             self.hist_1_tags_data,
             self.hist_2_tags_data,
+            self.diff_1_data,
+            self.diff_2_data,
+            self.prev_raw_1,
+            self.prev_raw_2,
             self.coinc_1,
             self.coinc_2,
             self.full_coinc_1,

@@ -73,6 +73,8 @@ from measurements.voltage_current_scan import VoltageCurrentScan
 from measurements.long_term_minimize import ContinuousScanMin, ConstantMin
 from measurements.fringe_scan import FringeScan
 from measurements.continuous_integrate import ContinuousIntegrate
+from measurements.histogram_save import SaveHistogram
+from measurements.time_walk_analysis import TimeWalkAnalysis, TimeWalkRunner
 
 import logging
 
@@ -151,7 +153,6 @@ class CoincidenceExample(QMainWindow):
         self.fig, axd = plt.subplot_mosaic(
             outer, gridspec_kw=gs_kw, layout="constrained"
         )
-        # print(axd)
         self.clockAxis = axd["upper left"]
         self.counterAxis = axd["upper right"]
         self.correlationAxis = axd["lower left"]
@@ -237,7 +238,11 @@ class CoincidenceExample(QMainWindow):
             ConstantMin, self.Vsource, "constant long min"
         )
         self.measurement_list.add_measurement(FringeScan, self.Vsource, "fringe scan")
-        self.measurement_list.add_measurement(ContinuousIntegrate, self, "forever integrate")
+        self.measurement_list.add_measurement(
+            ContinuousIntegrate, self, "forever integrate"
+        )
+        self.measurement_list.add_measurement(SaveHistogram, self, "save histogram")
+        self.measurement_list.add_measurement(TimeWalkRunner, (), "time walk analysis")
 
     def initVsource(self):
         self.Vsource = teledyneT3PS("10.7.0.147", port=1026)
@@ -413,7 +418,6 @@ class CoincidenceExample(QMainWindow):
             "#cc916a",
         ]
         data = self.counter.getData().T
-        # print(numpy.shape(data))
         lines = self.plt_counter = self.counterAxis.plot(
             self.counter.getIndex() * 1e-12,
             data[:, :3] * self.getCouterNormalizationFactor(),
@@ -445,6 +449,9 @@ class CoincidenceExample(QMainWindow):
                 full_coinc_1,
                 full_coicc_2,
                 coincidence,
+                diff_1,
+                diff_2,
+                period
             ) = self.PLL.getData()
 
             try:
@@ -525,7 +532,6 @@ class CoincidenceExample(QMainWindow):
         else:
             index = self.correlation.getIndex()
             data = self.correlation.getData()
-            print(self.correlation)
             self.plt_correlation = self.correlationAxis.plot(index * 1e-3, data)
 
         self.correlationAxis.set_xlabel("time (ns)")
@@ -571,8 +577,6 @@ class CoincidenceExample(QMainWindow):
             box_end = period * i + width
             self.boxes.append([box_start, box_end])
 
-        # boxes = self.apply_box_offset(boxes, offset)
-        # print(self.boxes)
         for box in self.boxes:
             self.spans.append(
                 self.correlationAxis.axvspan(
@@ -620,7 +624,6 @@ class CoincidenceExample(QMainWindow):
 
     def clearClicked(self):
         """Handler for the clear action button"""
-        print("clear clicked")
         self.correlation.clear()
 
     def handle_user_input(self):
@@ -951,7 +954,6 @@ class CoincidenceExample(QMainWindow):
 
             self.buffer = self.correlation.getData()
             self.scopeBlock[i] = self.buffer - self.buffer_old
-            # print(numpy.sum(self.buffer - self.buffer_old))
             # buffer is used in next loop for subtraction
             self.buffer_old = self.buffer
 
@@ -1021,10 +1023,6 @@ class CoincidenceExample(QMainWindow):
             self.ui.correlationBins.value(),
         )
 
-        # print(self.active_channels[0])
-        # print(self.active_channels[1])
-        # print(self.active_channels[2])
-
         self.hist2D.startFor(int(3e12))  # 1 second
 
         while self.hist2D.isRunning():
@@ -1032,8 +1030,6 @@ class CoincidenceExample(QMainWindow):
 
         img = self.hist2D.getData()
 
-        # print(numpy.max(img))
-        # print(numpy.min(img))
         fig = plt.figure(figsize=(5, 5))
         ax = fig.add_subplot(111)
         ax.set_title("2DHist")
@@ -1131,15 +1127,9 @@ class CoincidenceExample(QMainWindow):
             persistentData_ent2
         ) / len(persistentData_ent2)
 
-        # plt.plot(persistentData_ent1)
-        # plt.plot(persistentData_ent2)
-        # print(numpy.sum(persistentData_ent1))
-        # print(numpy.sum(persistentData_ent2))
-
         similar = self.match_filter(persistentData_ent1_z, persistentData_ent2_z)
         # self.ui.delayC.setValue(numpy.argmax(similar))
         self.ui.delayA.setValue(self.offset_a + numpy.argmax(similar))
-        print("max of simiar: ", numpy.max(similar))
 
         guass = self.gaussian(80, 40, 15)
         extra_len = len(persistentData_ent1) - 160
@@ -1148,23 +1138,8 @@ class CoincidenceExample(QMainWindow):
         # create psuedo-data that's perfectly centered
         base_array = numpy.concatenate((guass, guass * 2, guass_ext))
         base_array = numpy.roll(base_array, -20)  # fudge value
-        # base_array = numpy.concatenate(
-        #     (
-        #         numpy.zeros(75),
-        #         numpy.ones(10),
-        #         numpy.zeros(70),
-        #         numpy.ones(10),
-        #         numpy.zeros(extra_len),
-        #     )
-        # )
-        # inverted_hist = (
-        #     numpy.ones(len(persistentData_ent1)) * numpy.max(persistentData_ent1)
-        #     - persistentData_ent1
-        # )
         ratio = numpy.max(persistentData_ent1) / numpy.max(base_array)
         clock_similar = self.diff_match_filter(persistentData_ent1, base_array * ratio)
-        # self.ui.delayC.setValue(-numpy.argmax(clock_similar))
-        # self.ui.delayD.setValue(-numpy.argmax(clock_similar))
         self.ui.delayC.setValue(-numpy.argmin(clock_similar))
         self.ui.delayD.setValue(-numpy.argmin(clock_similar))
 
@@ -1303,111 +1278,9 @@ class CoincidenceExample(QMainWindow):
         print("requested voltage ##########: ", round(self.req_voltage, 3))
         self.Vsource.setVoltage(2, round(self.req_voltage, 3))
 
-    def handleScanInput(self):
-        self.input_mode = True
-        self.intTime = float(
-            input("Input the approximate integration time per point: ")
-        )
-        self.holdTime = float(input("Input extra interferometer stabilize time: "))
-        self.vStart = float(input("Start Voltage: "))
-        self.vEnd = float(input("End Voltage: "))
-        self.vStep = float(input("Voltage step: "))
-
-        steps = ((self.vEnd - self.vStart) // self.vStep) + 1
-        total_time = round((self.intTime + self.holdTime) * steps, 2)
-
-        res = input(f"Scan will take {total_time} seconds. Continue? (Y/n)")
-        print("res: ", res)
-        if (res == "Y") or (res == ""):
-            self.inputValid = True
-            self.input_mode = False
-            self.t_previous = time.time()
-            self.voltageArray = numpy.arange(
-                self.vStart, self.vEnd, self.vStep
-            ).tolist()
-            # print("voltage array: ", self.voltageArray)
-            self.voltage_idx = 0
-            self.master_counts = []
-            self.master_times = []
-            self.master_current = []
-
-            self.counts_list = []
-            self.times_list = []
-            self.state = "waiting"  # for interferometer to settle
-            setVoltage = round(self.voltageArray[self.voltage_idx], 3)
-            print(f" ########### setting voltage to {setVoltage}")
-            self.Vsource.setVoltage(2, setVoltage)
-            self.scanRunning = True
-            return 0
-        print("Exiting")
-        self.inputValid = False
-        self.input_mode = False
-
-        return 0
-
     def initMeasurement(self):
         cindex = self.ui.measurement_combobox.currentIndex()
-        print(cindex)
         self.event_loop_action = self.measurement_list.load_measurement(cindex)
-        print(type(self.event_loop_action))
-
-    def collectCoincidences(self, count):
-        ######### a way to do a coincidence measurment inside the program's main event loop.
-
-        # if integration time exeedes limit, add and save the data, clear the buffer
-        # else add to the integrator, iteration +1
-
-        # t_previous is only changed when an integration period or a waiting period ends.
-        if self.scanRunning:
-            current_time = time.time()
-            if self.state == "integrating":
-                delta_t = current_time - self.t_previous
-                if delta_t > self.intTime:
-                    # finishes with this integration. Finish and move on.
-                    # save the data.
-                    self.master_counts.append(sum(self.counts_list))
-                    self.master_times.append(delta_t)
-                    self.master_current.append(self.Vsource.getCurrent(2))
-                    self.counts_list = []
-
-                    if self.holdTime > 0:
-                        self.state = "waiting"
-                        print("state: ", self.state)
-                        self.t_previous = current_time
-                    else:
-                        self.t_previous = current_time
-                    # set the next voltage
-                    self.voltage_idx += 1
-                    if self.voltage_idx < len(self.voltageArray):
-                        setVoltage = round(self.voltageArray[self.voltage_idx], 3)
-                        print(f" ########### setting voltage to {setVoltage}")
-                        self.Vsource.setVoltage(2, setVoltage)
-                    else:
-                        # finish up the scan
-                        self.scanRunning = False
-                        print("master counts: ", self.master_counts)
-                        print("master times: ", self.master_times)
-                        dic = {
-                            "master_counts": self.master_counts,
-                            "master_current": self.master_current,
-                            "master_times": self.master_times,
-                            "voltage_array": self.voltageArray,
-                        }
-                        now = str(datetime.datetime.now()).replace(":", "_")
-                        with open(
-                            f"data_{self.vStart}_{self.vEnd}_{now}.json", "w"
-                        ) as file:
-                            file.write(json.dumps(dic))
-                        return 0
-                else:
-                    # add to integration
-                    # delta_t = current_time - self.t_previous
-                    self.counts_list.append(count)
-            if self.state == "waiting":
-                if (current_time - self.t_previous) > self.holdTime:
-                    self.state = "integrating"
-                    print("state: ", self.state)
-                    self.t_previous = current_time
 
     def saveClicked(self):
         """Handler for the save action button"""
@@ -1489,7 +1362,13 @@ class CoincidenceExample(QMainWindow):
                     full_coinc_1,
                     full_coinc_2,
                     coincidence,
+                    diff_1,
+                    diff_2,
+                    period,
                 ) = self.PLL.getData()
+                # print(diff_1[:7])
+                # print(diff_2[:7])
+
                 clocks_div = clocks[:: self.divider]
                 pclocks_div = pclocks[:: self.divider]
                 x_clocks = numpy.linspace(0, 1, len(clocks_div))
@@ -1550,6 +1429,11 @@ class CoincidenceExample(QMainWindow):
                         full_coinc_1=full_coinc_1.tolist(),
                         full_coinc_2=full_coinc_2.tolist(),
                         coincidences=coincidence,  # count of all period-level coincidences
+                        diff_1 = diff_1,# for time walk analysis
+                        diff_2 = diff_2,
+                        period = period,
+                        hist_tags_1 = hist1,
+                        hist_tags_2 = hist2,
                     )
 
             else:
@@ -1611,11 +1495,6 @@ class CoincidenceExample(QMainWindow):
 
                     self.coinc_idx += 1
                     self.coinc_x.append(self.coinc_idx)
-                    # self.coinc_y.append(coincidences)
-                    # print(self.full_coincidence_block)
-                    # self.coinc_y.append(numpy.sum(self.full_coincidence_block))
-                    # current_time = time.time()
-                    # delta_time = current_time - self.prev_time
 
                     self.coinc_y.append(numpy.average(self.full_coincidence_block))
                     self.efficiency_y.append(
