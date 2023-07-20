@@ -1,0 +1,5 @@
+analysis_time: 20 # s
+t_prime_max: 300000 # ps
+t_prime_step: 500 # ps
+hist_bin_number: 243
+save_name: "time_walk_correction_1.json"
