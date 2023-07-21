@@ -7,7 +7,7 @@ Channels:
     # 54,39: 39250
     # 5.12.2022 before leaving: 1299
     # 980 NO MUXES
-    dead_time: 100 # ns
+    dead_time: 20 # ns
 
   ChB:
     channel: -5
@@ -17,7 +17,7 @@ Channels:
     # 54,39: -39580
     # 5.12.2022 before leaving: -1150
     # -550 NO MUXES
-    dead_time: 100
+    dead_time: 20
 
   ChC:
     channel: 9
