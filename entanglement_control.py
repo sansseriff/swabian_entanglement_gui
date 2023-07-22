@@ -193,6 +193,9 @@ class CoincidenceExample(QMainWindow):
         self.clock_divider = 100  # divider 156.25MHz down to 78.125 KHz
         self.tagger.setEventDivider(9, self.clock_divider)
 
+        self.pll_store = [None]
+        # self.PLL = dumb_store
+
         for arg in sys.argv:
             if arg == "-auto_init":
                 # use this to get everything running right from the beginning.
@@ -242,7 +245,7 @@ class CoincidenceExample(QMainWindow):
             ContinuousIntegrate, self, "forever integrate"
         )
         self.measurement_list.add_measurement(SaveHistogram, self, "save histogram")
-        self.measurement_list.add_measurement(TimeWalkRunner, (), "time walk analysis")
+        self.measurement_list.add_measurement(TimeWalkRunner, self.pll_store, "time walk analysis")
 
     def initVsource(self):
         self.Vsource = teledyneT3PS("10.7.0.147", port=1026)
@@ -1225,17 +1228,8 @@ class CoincidenceExample(QMainWindow):
             prop=9e-13,
             n_bins=800000,
         )
-        # self.PLL = CustomPLLHistogram(
-        #     self.tagger,
-        #     data_channel_1,
-        #     data_channel_2,
-        #     clock_channel,
-        #     mult=1,  # clock multiplier
-        #     phase=0,
-        #     deriv=300,
-        #     prop=1.8e-12,
-        #     n_bins=800000,
-        # )
+        self.pll_store[0] = self.PLL
+
 
     def clockRefMode(self):
         # self.load_file_params()

@@ -29,6 +29,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         deriv=0.01,
         prop=2e-9,
         n_bins=20000000,
+        max_time_walk_arr_len = 10000,
     ):
         TimeTagger.CustomMeasurement.__init__(self, tagger)
         self.data_channel_1 = data_channel_1
@@ -47,6 +48,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         self.phi_old = 0
         self.init = 1
         self.max_bins = n_bins
+        self.max_time_walk_arr_len = max_time_walk_arr_len
         self.cycle = 0
 
         self.clock_idx = 0
@@ -61,6 +63,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         self.old_clock_start = 0
         self.old_clock = 0
         self.i = 0
+        self.t_prime_res = 500
         self.register_channel(channel=data_channel_1)
         self.register_channel(channel=data_channel_2)
         self.register_channel(channel=clock_channel)
@@ -154,6 +157,20 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         self.diff_1_data = np.zeros((self.max_bins,), dtype=np.float64)
         self.diff_2_data = np.zeros((self.max_bins,), dtype=np.float64)
 
+        # self.t_prime = np.zeros((self.max_time_walk_arr_len), dtype=np.float64)
+        
+        self.walk_offset_1 = np.zeros((self.max_time_walk_arr_len), dtype=np.float64)
+        self.walk_offset_2 = np.zeros((self.max_time_walk_arr_len), dtype=np.float64)
+
+
+    def load_time_walk_arrays(self, t_prime_res, offset_1, offset_2):
+        assert len(offset_1) == len(offset_2)
+        assert len(offset_1) < len(self.walk_offset_1)
+
+        self.t_prime_res = t_prime_res
+        self.walk_offset_1[:len(offset_1)] = offset_1
+        self.walk_offset_2[:len(offset_1)] = offset_2
+
     def on_start(self):
         # The lock is already acquired within the backend.
         pass
@@ -163,6 +180,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         pass
 
     # I should support the measurment of the unfiltered clock with respect to the phase locked clock.
+
 
     @staticmethod
     @numba.jit(nopython=True, nogil=True, cache=True)
@@ -175,6 +193,9 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         hist_2_tags_data: np.ndarray,
         diff_1_data: np.ndarray, # used for jitterate analysis
         diff_2_data: np.ndarray,
+        t_prime_res: int,
+        walk_offset_1: np.ndarray,
+        walk_offset_2: np.ndarray,
         prev_raw_1: int, # used for jitterate analysis
         prev_raw_2: int,
         coinc_1,
@@ -304,6 +325,23 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                 if clock0 != -1:
                     hist_tag = ((tag["time"] + test_factor) - clock0) - clock0_dec
                     # hist_tag = (tag["time"]+test_factor) - current_clock # no PLL
+
+                    # calculate diffs and apply walk offset (if available)
+                    if tag["channel"] == data_channel_1:
+                        diff = tag["time"] - prev_raw_1
+                        prev_raw_1 = tag["time"]
+                        diff_1_data[hist_1_idx] = diff # time walk
+                        hist_tag = correct_time_walk(hist_tag, diff, t_prime_res, walk_offset_1)
+                    if tag["channel"] == data_channel_2:
+                        diff = tag["time"] - prev_raw_2 # time walk
+                        prev_raw_2 = tag["time"] # time walk
+                        diff_2_data[hist_2_idx] = diff # time walk
+                        hist_tag = correct_time_walk(hist_tag, diff, t_prime_res, walk_offset_2)
+
+                    
+
+
+                    
                     sub_period = period / mult
                     minor_cycles = (hist_tag + phase) // sub_period
                     minor_cycle = cycle * mult + minor_cycles
@@ -320,9 +358,9 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                         buffer_cycle = minor_cycle
 
                     if tag["channel"] == data_channel_1:
-                        diff = tag["time"] - prev_raw_1
-                        prev_raw_1 = tag["time"]
-                        diff_1_data[hist_1_idx] = diff # time walk
+                        # diff = tag["time"] - prev_raw_1
+                        # prev_raw_1 = tag["time"]
+                        # diff_1_data[hist_1_idx] = diff # time walk
 
                         hist_1_tags_data[hist_1_idx] = hist_tag
                         hist_1_idx += 1
@@ -355,9 +393,9 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                                 center_buffer_cycle = minor_cycle
 
                     if tag["channel"] == data_channel_2:
-                        diff = tag["time"] - prev_raw_2 # time walk
-                        prev_raw_2 = tag["time"] # time walk
-                        diff_2_data[hist_2_idx] = diff # time walk
+                        # diff = tag["time"] - prev_raw_2 # time walk
+                        # prev_raw_2 = tag["time"] # time walk
+                        # diff_2_data[hist_2_idx] = diff # time walk
 
                         hist_2_tags_data[hist_2_idx] = hist_tag
                         hist_2_idx += 1
@@ -464,6 +502,9 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             self.hist_2_tags_data,
             self.diff_1_data,
             self.diff_2_data,
+            self.t_prime_res,
+            self.walk_offset_1,
+            self.walk_offset_2,
             self.prev_raw_1,
             self.prev_raw_2,
             self.coinc_1,
@@ -490,6 +531,15 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             self.cycle,
             self.coincidence,
         )
+
+@numba.jit(nopython=True, nogil=True, cache=True)
+def correct_time_walk(hist_tag, diff, t_prime_res, walk_offset):
+    diff_arg = int(diff/t_prime_res) #500 ps
+    if diff_arg > len(walk_offset):
+        return hist_tag
+    else:
+        # extremely basic interpolation
+        return hist_tag - walk_offset[diff_arg]
 
 
 # Channel definitions

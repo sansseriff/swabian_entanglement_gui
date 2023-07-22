@@ -14,6 +14,8 @@ from enum import Enum
 class Mode(Enum):
     INTEGRATE = 0
     COMPUTE = 1
+    FINISHED = 2
+
 
 @dataclass
 class InputData:
@@ -37,7 +39,7 @@ class InputMessage:
 
 
 class TimeWalkRunner(Action):
-    def __init__(self):
+    def __init__(self, pll):
         super().__init__()
 
         with open(
@@ -49,7 +51,7 @@ class TimeWalkRunner(Action):
                 print(exc)
 
         self.add_action(
-            TimeWalkAnalysis(
+            TimeWalkAnalysis(pll,
                 params["analysis_time"],
                 params["t_prime_max"],
                 params["t_prime_step"],
@@ -64,7 +66,7 @@ class TimeWalkManager:
         self.hist_2d_1 = None
         self.hist_2d_2 = None
 
-    def process(self, message: InputMessage):
+    def process(self, message: InputMessage) -> Union[None, list]:
         if message.action == Mode.INTEGRATE:
             self.integrate_histograms(message.data)
             return
@@ -106,7 +108,7 @@ class TimeWalkManager:
         match_1, offset_array_1 = skew_and_kernel(self.hist_2d_1, self.period, self.hist_bin_number, self.t_prime_step)
         match_2, offset_array_2 = skew_and_kernel(self.hist_2d_2, self.period, self.hist_bin_number, self.t_prime_step)
 
-        fig, ax = plt.subplots(1,2,figsize=(7,5))
+        fig, ax = plt.subplots(2,2,figsize=(7,5))
 
         # Display the data as an image
         ax[0][0].imshow(match_1, cmap='viridis')
@@ -181,7 +183,10 @@ def time_walk_event_loop(input_queue, output_queue):
         if data is None:
             print("received none. Exiting.")
             break
-        manager.process(data)
+        result = manager.process(data)
+
+        if result is not None:
+            output_queue.put(result)
 
 
 
@@ -190,9 +195,10 @@ def time_walk_event_loop(input_queue, output_queue):
 
 class TimeWalkAnalysis(Action):
     def __init__(
-        self, int_time, t_prime_max, t_prime_step, hist_bin_number, progress_bar=True
+        self, pll, int_time, t_prime_max, t_prime_step, hist_bin_number, progress_bar=True
     ):
         super().__init__()
+        self.pll = pll # the pll object from CustomPLLHistogram.py
         self.progress_bar = progress_bar
         self.int_time = int_time
         self.t_prime_max = t_prime_max
@@ -209,6 +215,8 @@ class TimeWalkAnalysis(Action):
         self.output_queue = multiprocessing.Queue()
         self.process = multiprocessing.Process(target=time_walk_event_loop, args=(self.input_queue, self.output_queue))
         self.process.start()
+
+        self.mode = Mode.INTEGRATE
 
     def evaluate(self, current_time, counts, **kwargs):
         logger.debug(f"Evaluating Action: {self.n}")
@@ -234,51 +242,64 @@ class TimeWalkAnalysis(Action):
             if self.label != "default_label":
                 print(f"################################## Beginning: {self.label}")
         
-        d = InputData(diff_1=diff_1,
-                           diff_2=diff_2,
-                           hist_1=hist_1,
-                           hist_2=hist_2,
-                           t_prime_step=self.t_prime_step,
-                           period=self.period,
-                           t_prime_bins=self.t_prime_bins,
-                           hist_bins=self.hist_bins,
-                           hist_bin_number=self.hist_bin_number)
-        msg = InputMessage(d, Mode.INTEGRATE)
+        if self.mode == Mode.INTEGRATE:
+            d = InputData(diff_1=diff_1,
+                            diff_2=diff_2,
+                            hist_1=hist_1,
+                            hist_2=hist_2,
+                            t_prime_step=self.t_prime_step,
+                            period=self.period,
+                            t_prime_bins=self.t_prime_bins,
+                            hist_bins=self.hist_bins,
+                            hist_bin_number=self.hist_bin_number)
+            
+            msg = InputMessage(d, Mode.INTEGRATE)
 
-        self.input_queue.put(msg)
-        print(f"Input queue length: {self.input_queue.qsize()}")
+            self.input_queue.put(msg)
+
+            if self.input_queue.qsize() != 1:
+                print(f"Input queue length: {self.input_queue.qsize()}")
 
 
-        if self.progress_bar:
-            r = round(((current_time - self.init_time) / self.int_time) * 100)
-            if self.pbar_ratio != r:
-                self.pbar_ratio = r
-                self.progress_bar.update(1)
+            if self.progress_bar:
+                r = round(((current_time - self.init_time) / self.int_time) * 100)
+                if self.pbar_ratio != r:
+                    self.pbar_ratio = r
+                    self.progress_bar.update(1)
 
 
         if (current_time - self.init_time) > self.current_value(self.int_time):
+            self.mode = Mode.COMPUTE
+
             # end of integration period. Being computation
             logger.info(
                 f"     {self.n}: Finishing Integration. Time Integrating: {round(self.delta_time,3)}"
             )
+
+        if self.mode == Mode.COMPUTE:
 
             if self.progress_bar:
                 self.progress_bar.close()
             self.delta_time = current_time - self.init_time
 
             # start the time walk final computation using the collected 2D histogram
-            self.input_queue.put(InputMessage(None, Mode.COMPUTE))
 
-            
+            self.input_queue.put(InputMessage(None, Mode.COMPUTE))
+            self.mode = Mode.FINISHED
+
+        if self.mode == Mode.FINISHED:
 
             try:
-                output_data = self.output_queue.get(False) # non blocking
-                print("these are the t prime curves")
-                print(output_data)
+                offsets_1, offsets_2 = self.output_queue.get(False) # non blocking
+                print("Offset arrays computed. Applying...")
 
 
-                self.input_queue.put(None)
-                self.process.join()
+                self.input_queue.put(None) # tells the other process to end
+                self.process.terminate()
+
+                self.pll[0].load_time_walk_arrays(self.t_prime_step, offsets_1, offsets_2)
+
+
                 self.final_state = {
                     "state": "finished",
                     "name": self.n,
