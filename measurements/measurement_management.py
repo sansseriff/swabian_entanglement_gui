@@ -955,9 +955,9 @@ class Extremum(Action):
                 self.old_voltage = self.get_voltage()
                 self.set_voltage(self.get_voltage() + delta)
                 logger.info(
-                    f"     {self.n}: Updating voltage: {round(self.get_voltage(), 3)}"
+                    f"     {self.n}: Updating intf. voltage: {round(self.get_voltage(), 3)}"
                 )
-                print(f"#### Updating voltage: {round(self.get_voltage(), 3)}")
+                print(f"#### Updating intf. voltage: {round(self.get_voltage(), 3)}")
                 print()
                 self.vsource.setVoltage(self.channel, round(self.get_voltage(), 3))
                 self.voltage_list.append(self.old_voltage)

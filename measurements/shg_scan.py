@@ -206,12 +206,35 @@ class DensityMatrixSHGScan(Action):
                 print(exc)
         params = params["channel_visibility"]
 
-        powers = [
-            round(item, 3)
-            for item in np.arange(
-                params["low_power"], params["high_power"], params["power_step"]
-            ).tolist()
-        ]
+        # powers = [
+        #     round(item, 3)
+        #     for item in np.arange(
+        #         params["low_power"], params["high_power"], params["power_step"]
+        #     ).tolist()
+        # ]
+
+        # chosen to increase linearly in mu approximately
+        powers = [1.2922, 
+                 1.9835, 
+                 2.3658, 
+                 2.6637, 
+                 2.9165, 
+                 3.1399, 
+                 3.3424, 
+                 3.5289, 
+                 3.7027, 
+                 3.866,]
+        # powers = [4.0207, 
+        #           4.1678, 
+        #           4.3084, 
+        #           4.4434, 
+        #           4.5733, 
+        #           4.6987, 
+        #           4.8199, 
+        #           4.9375, 
+        #           5.0517, 
+        #           5.1628]
+
 
         min_voltage_1 = Store(voltage=params["minimum_voltage_1"])
         min_voltage_2 = Store(voltage=params["minimum_voltage_2"])

@@ -37,10 +37,31 @@ class InputMessage:
     action: str
 
 
+class CancelPreviousCorrection(Action):
+    def __init__(self, pll, **kwargs):
+        super().__init__(**kwargs)
+        self.pll = pll
+
+    def evaluate(self, current_time, counts, **kwargs):
+        logger.debug(f"Evaluating Action: {self.n}")
+        logger.info(f"     {self.n}: setting time walk offset arrays to zero")
+        self.pll.zero_time_walk_arrays()
+
+        self.final_state = {
+            "state": "finished",
+            "name": self.n,
+            "label": self.label,
+        }
+        return self.final_state
+
+    def __str__(self):
+        return "CancelPreviousCorrection Action Object"
+
 
 class TimeWalkRunner(Action):
     def __init__(self, pll):
         super().__init__()
+        self.pll = pll[0] # dereference the silly mutable reference
 
         with open(
             "./measurements/time_walk_analysis.yaml", "r", encoding="utf8"
@@ -50,8 +71,10 @@ class TimeWalkRunner(Action):
             except yaml.YAMLError as exc:
                 print(exc)
 
+        self.add_action(CancelPreviousCorrection(self.pll))
+        self.add_action(Wait(2))
         self.add_action(
-            TimeWalkAnalysis(pll,
+            TimeWalkAnalysis(self.pll,
                 params["analysis_time"],
                 params["t_prime_max"],
                 params["t_prime_step"],
@@ -131,6 +154,7 @@ class TimeWalkManager:
 def sum_absolute_differences(input_array, kernel):
     offset_off = 0
     old_offset = -1
+    # print("kernel length: ", len(kernel))
 
     offsets = np.zeros(np.shape(input_array)[0])
     new  = np.zeros(np.shape(input_array))
@@ -145,11 +169,11 @@ def sum_absolute_differences(input_array, kernel):
             old_offset = offset
 
         # these handle period jumps
-        if (offset - old_offset) > 240:
-            offset_off = offset_off - 243
+        if (offset - old_offset) > int(0.95*len(kernel)):
+            offset_off = offset_off - len(kernel)
 
-        if (offset - old_offset) < -240:
-            offset_off = offset_off + 243
+        if (offset - old_offset) < -int(0.95*len(kernel)):
+            offset_off = offset_off + len(kernel)
         
         offsets[i] = offset + offset_off
             
@@ -187,9 +211,6 @@ def time_walk_event_loop(input_queue, output_queue):
 
         if result is not None:
             output_queue.put(result)
-
-
-
 
 
 
@@ -264,8 +285,11 @@ class TimeWalkAnalysis(Action):
             if self.progress_bar:
                 r = round(((current_time - self.init_time) / self.int_time) * 100)
                 if self.pbar_ratio != r:
+                
+                    diff = r - self.pbar_ratio
+                    # print(diff)
                     self.pbar_ratio = r
-                    self.progress_bar.update(1)
+                    self.progress_bar.update(diff)
 
 
         if (current_time - self.init_time) > self.current_value(self.int_time):
@@ -297,7 +321,7 @@ class TimeWalkAnalysis(Action):
                 self.input_queue.put(None) # tells the other process to end
                 self.process.terminate()
 
-                self.pll[0].load_time_walk_arrays(self.t_prime_step, offsets_1, offsets_2)
+                self.pll.load_time_walk_arrays(self.t_prime_step, offsets_1, offsets_2)
 
 
                 self.final_state = {

@@ -159,8 +159,10 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
 
         # self.t_prime = np.zeros((self.max_time_walk_arr_len), dtype=np.float64)
         
-        self.walk_offset_1 = np.zeros((self.max_time_walk_arr_len), dtype=np.float64)
-        self.walk_offset_2 = np.zeros((self.max_time_walk_arr_len), dtype=np.float64)
+        # self.walk_offset_1 = np.zeros((self.max_time_walk_arr_len), dtype=np.float64)
+        # self.walk_offset_2 = np.zeros((self.max_time_walk_arr_len), dtype=np.float64)
+
+        self.zero_time_walk_arrays()
 
 
     def load_time_walk_arrays(self, t_prime_res, offset_1, offset_2):
@@ -170,6 +172,10 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
         self.t_prime_res = t_prime_res
         self.walk_offset_1[:len(offset_1)] = offset_1
         self.walk_offset_2[:len(offset_1)] = offset_2
+
+    def zero_time_walk_arrays(self):
+        self.walk_offset_1 = np.zeros((self.max_time_walk_arr_len), dtype=np.float64)
+        self.walk_offset_2 = np.zeros((self.max_time_walk_arr_len), dtype=np.float64)
 
     def on_start(self):
         # The lock is already acquired within the backend.
@@ -231,6 +237,7 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                        this method can run in parallel with other python code
         """
 
+        dead_walk = True
         error = 0
         ch1_siv_start = 90  # - 20  # blue
         ch1_siv_end = 150  # + 20  # blue
@@ -331,15 +338,23 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
                         diff = tag["time"] - prev_raw_1
                         prev_raw_1 = tag["time"]
                         diff_1_data[hist_1_idx] = diff # time walk
+
+                        # if dead_walk:
+                        #     if diff < 200000:
+                        #         continue
+
                         hist_tag = correct_time_walk(hist_tag, diff, t_prime_res, walk_offset_1)
+
                     if tag["channel"] == data_channel_2:
                         diff = tag["time"] - prev_raw_2 # time walk
                         prev_raw_2 = tag["time"] # time walk
                         diff_2_data[hist_2_idx] = diff # time walk
+
+                        # if dead_walk:
+                        #     if diff < 200000:
+                        #         continue
+
                         hist_tag = correct_time_walk(hist_tag, diff, t_prime_res, walk_offset_2)
-
-                    
-
 
                     
                     sub_period = period / mult
@@ -531,6 +546,10 @@ class CustomPLLHistogram(TimeTagger.CustomMeasurement):
             self.cycle,
             self.coincidence,
         )
+
+# @numba.jit(nopython=True, nogil=True, cache=True)
+# def handle_time_walk(hist_tag, diff, t_prime_res, walk_offset):
+#     pass
 
 @numba.jit(nopython=True, nogil=True, cache=True)
 def correct_time_walk(hist_tag, diff, t_prime_res, walk_offset):

@@ -1,25 +1,25 @@
 channel_visibility:
   scan_power: 3.0
   low_power: 1.2 #1.2
-  high_power: 4.06
+  high_power: 5.17
   intf_stabilize_time: 90
   minimum_voltage_1: 2.58
-  minimum_voltage_2: 3.82
+  minimum_voltage_2: 3.791
   maximum_voltage: 1.60
   power_stabilize_time: 30 
-  output_file_name: "channel_visibility_dm_42_52.json"
+  output_file_name: "channel_visibility_dm_high_power_42_52.json"
 
   scan_extremum_min:
     type: "min"
-    int_time: 0.5
-    wait_time: 1
+    int_time: 2
+    wait_time: 10
     change_rate: 0.05
     fine_grain_mode: true
     low_res_steps: 0
-    steps: 14
+    steps: 20
     int_type: "custom"
 
-    minimum_counts: 600 
+    minimum_counts: 1200 
     minimum_integrate_evaluations: 10
 
   scan_extremum_max:

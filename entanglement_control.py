@@ -75,6 +75,7 @@ from measurements.fringe_scan import FringeScan
 from measurements.continuous_integrate import ContinuousIntegrate
 from measurements.histogram_save import SaveHistogram
 from measurements.time_walk_analysis import TimeWalkAnalysis, TimeWalkRunner
+from measurements.time_walk_comparison import TimeWalkComparison
 
 import logging
 
@@ -193,8 +194,7 @@ class CoincidenceExample(QMainWindow):
         self.clock_divider = 100  # divider 156.25MHz down to 78.125 KHz
         self.tagger.setEventDivider(9, self.clock_divider)
 
-        self.pll_store = [None]
-        # self.PLL = dumb_store
+        self.pll_store = [None] # a silly way to make a mutable reference
 
         for arg in sys.argv:
             if arg == "-auto_init":
@@ -246,6 +246,7 @@ class CoincidenceExample(QMainWindow):
         )
         self.measurement_list.add_measurement(SaveHistogram, self, "save histogram")
         self.measurement_list.add_measurement(TimeWalkRunner, self.pll_store, "time walk analysis")
+        self.measurement_list.add_measurement(TimeWalkComparison, self.Vsource, "time_walk_comparison")
 
     def initVsource(self):
         self.Vsource = teledyneT3PS("10.7.0.147", port=1026)
@@ -1175,7 +1176,7 @@ class CoincidenceExample(QMainWindow):
         self.show_dialog("Enter desired SHG power (Amps)")
         if self.user_message[1]:
             power = round(float(self.user_message[0]), 3)
-            if power < 4.0:
+            if power < 5.18:
                 power_manager.change_pump_power(power)
             else:
                 print("error power too high")
@@ -1226,7 +1227,9 @@ class CoincidenceExample(QMainWindow):
             phase=0,
             deriv=200,
             prop=9e-13,
-            n_bins=800000,
+            n_bins=16000000,
+            # ideally I would figure out how to make the program not crash when 16 million bins runs out. 
+            # but that's a few seconds of integration at the highest count rates. Which hasn't been a problem. 
         )
         self.pll_store[0] = self.PLL
 
@@ -1405,15 +1408,19 @@ class CoincidenceExample(QMainWindow):
                 self.histBlock_coinc_2[self.BlockIndex] = histogram_coinc_2
 
                 current_time = time.time()
+
+
                 delta_time = current_time - self.prev_time
                 hist_avg_rate = (numpy.sum(histogram1) + numpy.sum(histogram2)) / 2
                 self.full_coincidence_block[self.BlockIndex] = coincidence / delta_time
                 self.hist_avg_rate_block[self.BlockIndex] = hist_avg_rate / delta_time
                 self.prev_time = current_time
 
+                
+
                 if self.event_loop_action is not None:
                     self.event_loop_action.evaluate(
-                        time.time(),
+                        current_time,
                         len(coinc1),
                         main_window=self,
                         coincidence_array_1=coinc1.tolist(),
